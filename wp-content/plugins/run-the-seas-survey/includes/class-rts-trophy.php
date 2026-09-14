@@ -344,7 +344,7 @@ class RTS_Trophy {
 
     /** Run the new eligibility model once for records created by older versions. */
     public function maybe_reconcile_historical_trophies() {
-        $migration_version = '5';
+        $migration_version = '7';
         if (get_option('rts_trophy_reconciliation_version') === $migration_version) {
             return;
         }
@@ -606,8 +606,8 @@ class RTS_Trophy {
             }
         }
         
-        // If the previous trophy is unavailable, start when registration and
-        // email verification were both complete.
+        // If the previous trophy is unavailable, use registration as the
+        // beginning of the participant's trophy journey.
         $participant = $this->registration->get_participant($participant_id);
         $journey_start = $this->get_trophy_journey_start_date($participant);
         if ($journey_start) {
@@ -858,30 +858,29 @@ class RTS_Trophy {
         }
     }
 
-    /** The journey starts only after both registration and email verification. */
+    /** Total trophy days begin on the participant's registration date. */
     private function get_trophy_journey_start_date($participant) {
         if (!$participant || empty($participant->registration_date)) {
             return '';
         }
 
-        $timestamps = array(strtotime((string) $participant->registration_date));
-        if (!empty($participant->email_verification_date)) {
-            $timestamps[] = strtotime((string) $participant->email_verification_date);
-        }
-        $timestamps = array_filter($timestamps);
-
-        return $timestamps ? date('Y-m-d H:i:s', max($timestamps)) : '';
+        return $this->normalise_trophy_date($participant->registration_date);
     }
 
-    /** Return achievement days between two dates, counting a same-day result as day one. */
+    /**
+     * Return calendar days between two dates. A trophy earned on the starting
+     * date is day zero. Trophy progress is based on dates, not completed
+     * 24-hour periods, so September 10 to September 14 is four days regardless
+     * of the time of day at which each event was recorded.
+     */
     private function days_between_trophy_dates($start_date, $end_date) {
         if (!$start_date || !$end_date) {
             return 0;
         }
 
         try {
-            $start = new DateTimeImmutable((string) $start_date);
-            $end = new DateTimeImmutable((string) $end_date);
+            $start = (new DateTimeImmutable((string) $start_date))->setTime(0, 0, 0);
+            $end = (new DateTimeImmutable((string) $end_date))->setTime(0, 0, 0);
         } catch (Exception $exception) {
             return 0;
         }
@@ -890,9 +889,7 @@ class RTS_Trophy {
             return 0;
         }
 
-        // A milestone completed on the starting calendar day counts as day 1,
-        // rather than presenting a confusing zero-day achievement.
-        return max(1, (int) $start->diff($end)->days);
+        return (int) $start->diff($end)->days;
     }
 
     /** Recalculate display statistics from actual dates for legacy trophies. */
@@ -911,7 +908,7 @@ class RTS_Trophy {
 
         // Some legacy imports recorded verification after an already-earned
         // trophy. Prefer the founding award as the authoritative journey start
-        // in that case, and never show an earned trophy as day zero.
+        // in that case rather than calculating a negative duration.
         if (!$journey_start || strtotime($journey_start) > strtotime($earned_date)) {
             $journey_start = $founding_date && strtotime($founding_date) <= strtotime($earned_date)
                 ? $founding_date
