@@ -707,6 +707,123 @@
     opacity: 1;
 }
 
+.rts-single-trophy__share-dialog[hidden] {
+    display: none;
+}
+
+.rts-single-trophy__share-dialog {
+    position: fixed;
+    z-index: 1000;
+    inset: 0;
+    display: grid;
+    padding: 24px;
+    overflow-y: auto;
+    place-items: center;
+    background: rgba(0, 5, 10, .86);
+    backdrop-filter: blur(7px);
+}
+
+.rts-single-trophy__share-panel {
+    position: relative;
+    width: min(760px, 100%);
+    padding: 30px;
+    border: 1px solid #d99a2b;
+    color: #f7d995;
+    text-align: center;
+    background: linear-gradient(145deg, #071624, #020911 72%);
+    box-shadow: 0 28px 80px rgba(0, 0, 0, .75), inset 0 0 35px rgba(217, 154, 43, .08);
+}
+
+.rts-single-trophy__share-panel h2 {
+    margin: 0 44px 8px;
+    color: #f5c363;
+    font: 600 clamp(28px, 4vw, 42px)/1 "Cormorant Garamond", Georgia, serif;
+    text-transform: uppercase;
+}
+
+.rts-single-trophy__share-panel p {
+    min-height: 24px;
+    margin: 0 0 18px;
+    color: #e7c27b;
+    font: 500 15px/1.5 "Inter Tight", Arial, sans-serif;
+}
+
+.rts-single-trophy__share-panel > img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 1px solid rgba(217, 154, 43, .52);
+    object-fit: contain;
+    background: #01060b;
+}
+
+.rts-single-trophy__share-panel > img:not([src]) {
+    opacity: .18;
+}
+
+.rts-single-trophy__share-close {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid rgba(217, 154, 43, .72);
+    border-radius: 50%;
+    color: #f5c363;
+    font: 300 28px/1 Arial, sans-serif;
+    background: rgba(0, 0, 0, .42);
+    cursor: pointer;
+}
+
+.rts-single-trophy__share-choices {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.rts-single-trophy__share-choices button {
+    min-width: 180px;
+    min-height: 46px;
+    margin: 0;
+    padding: 10px 18px;
+    border: 1px solid #d99a2b;
+    color: #f5c363;
+    font: 700 14px/1.2 "Inter Tight", Arial, sans-serif;
+    letter-spacing: .035em;
+    text-transform: uppercase;
+    background: rgba(4, 18, 29, .92);
+    cursor: pointer;
+}
+
+.rts-single-trophy__share-choices button:hover,
+.rts-single-trophy__share-choices button:focus-visible {
+    color: #fff0c4;
+    background: rgba(217, 154, 43, .15);
+}
+
+.rts-single-trophy__share-choices button:disabled {
+    opacity: .38;
+    cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+    .rts-single-trophy__share-dialog {
+        padding: 12px;
+    }
+
+    .rts-single-trophy__share-panel {
+        padding: 24px 14px 18px;
+    }
+
+    .rts-single-trophy__share-choices button {
+        width: 100%;
+    }
+}
+
 @media (max-width: 1250px) {
     .rts-single-trophy {
         min-height: 760px;

@@ -147,7 +147,7 @@ trait RTS_Frontend_Assets
             wp_enqueue_script(
                 'rts-single-trophy',
                 RTS_PLUGIN_URL . 'assets/js/single-trophy-three-surface.js',
-                array(),
+                array('rts-dom-to-image'),
                 RTS_VERSION . '.' . filemtime(RTS_PLUGIN_PATH . 'assets/js/single-trophy-three-surface.js'),
                 true
             );

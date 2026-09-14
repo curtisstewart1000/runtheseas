@@ -1,5 +1,5 @@
-import * as THREE from 'https://esm.sh/three@0.185.0';
-import { GLTFLoader } from 'https://esm.sh/three@0.185.0/examples/jsm/loaders/GLTFLoader.js';
+import * as THREE from './vendor/three/build/three.module.min.js';
+import { GLTFLoader } from './vendor/three/examples/jsm/loaders/GLTFLoader.js';
 
 const modelPromises = new Map();
 
@@ -302,7 +302,12 @@ function setCameraAngle(camera, target, angle, radius, polarAngle) {
 }
 
 async function createThreeViewer(element, root, options) {
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, stencil: true, powerPreference: 'high-performance' });
+    const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        stencil: true,
+        powerPreference: 'high-performance'
+    });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, options.interactive ? 2 : 1.5));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -474,28 +479,457 @@ function initShare(root) {
     const shareButton = root.querySelector('[data-rts-share]');
     const shareStatus = root.querySelector('[data-rts-share-status]');
     let statusTimer = 0;
-    const showStatus = (message) => {
+    const showStatus = (message, persistent = false) => {
         if (!shareStatus) return;
         window.clearTimeout(statusTimer);
         shareStatus.textContent = message;
-        statusTimer = window.setTimeout(() => { shareStatus.textContent = ''; }, 2600);
+        if (message && !persistent) {
+            statusTimer = window.setTimeout(() => { shareStatus.textContent = ''; }, 2600);
+        }
     };
     if (!shareButton) return;
-    shareButton.addEventListener('click', () => {
-        const data = {
-            title: shareButton.dataset.shareTitle || document.title,
-            text: shareButton.dataset.shareText || '',
-            url: window.location.href
-        };
-        if (navigator.share) {
-            navigator.share(data).catch((error) => {
-                if (error && error.name !== 'AbortError') showStatus('Unable to open sharing.');
-            });
-        } else if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(data.url).then(() => showStatus('Trophy link copied.')).catch(() => showStatus('Copy this page URL to share your trophy.'));
-        } else {
-            showStatus('Copy this page URL to share your trophy.');
+
+    const nextPaint = () => new Promise((resolve) => {
+        window.requestAnimationFrame(() => window.requestAnimationFrame(resolve));
+    });
+    const loadImage = (url) => new Promise((resolve) => {
+        if (!url) {
+            resolve(null);
+            return;
         }
+        const image = new Image();
+        let settled = false;
+        const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            resolve(value);
+        };
+        image.crossOrigin = 'anonymous';
+        image.onload = () => finish(image);
+        image.onerror = () => finish(null);
+        image.src = url;
+        window.setTimeout(() => finish(null), 5000);
+    });
+    const drawImageCover = (context, image, width, height) => {
+        const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+        const drawWidth = image.naturalWidth * scale;
+        const drawHeight = image.naturalHeight * scale;
+        context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+    };
+    const drawImageContained = (context, image, x, y, width, height) => {
+        if (!image || !image.naturalWidth || !image.naturalHeight) return;
+        const scale = Math.min(width / image.naturalWidth, height / image.naturalHeight);
+        const drawWidth = image.naturalWidth * scale;
+        const drawHeight = image.naturalHeight * scale;
+        context.drawImage(
+            image,
+            x + (width - drawWidth) / 2,
+            y + (height - drawHeight) / 2,
+            drawWidth,
+            drawHeight
+        );
+    };
+    const drawFittedText = (context, text, x, y, maximumWidth, size, options = {}) => {
+        const family = options.family || 'Georgia, serif';
+        const weight = options.weight || 600;
+        const minimumSize = options.minimumSize || 18;
+        let fontSize = size;
+        context.textAlign = options.align || 'center';
+        context.textBaseline = 'middle';
+        context.fillStyle = options.color || '#f5c363';
+        do {
+            context.font = `${weight} ${fontSize}px ${family}`;
+            if (context.measureText(text).width <= maximumWidth) break;
+            fontSize -= 2;
+        } while (fontSize > minimumSize);
+        context.fillText(text, x, y);
+    };
+    const getTrophyBounds = (source) => {
+        const sample = document.createElement('canvas');
+        sample.width = 640;
+        sample.height = Math.max(1, Math.round(640 * source.height / source.width));
+        const context = sample.getContext('2d', { willReadFrequently: true });
+        context.drawImage(source, 0, 0, sample.width, sample.height);
+        let pixels;
+        try {
+            pixels = context.getImageData(0, 0, sample.width, sample.height).data;
+        } catch (error) {
+            return null;
+        }
+        let left = sample.width;
+        let right = -1;
+        let top = sample.height;
+        let bottom = -1;
+        for (let y = 0; y < sample.height; y += 1) {
+            for (let x = 0; x < sample.width; x += 1) {
+                if (pixels[(y * sample.width + x) * 4 + 3] < 10) continue;
+                left = Math.min(left, x);
+                right = Math.max(right, x);
+                top = Math.min(top, y);
+                bottom = Math.max(bottom, y);
+            }
+        }
+        if (right < left || bottom < top) return null;
+        const scaleX = source.width / sample.width;
+        const scaleY = source.height / sample.height;
+        const paddingX = Math.max(2, (right - left) * 0.03);
+        const paddingY = Math.max(2, (bottom - top) * 0.03);
+        return {
+            x: Math.max(0, (left - paddingX) * scaleX),
+            y: Math.max(0, (top - paddingY) * scaleY),
+            width: Math.min(source.width, (right - left + paddingX * 2) * scaleX),
+            height: Math.min(source.height, (bottom - top + paddingY * 2) * scaleY)
+        };
+    };
+    const drawTrophyContained = (context, source, bounds, target) => {
+        const sourceBounds = bounds || { x: 0, y: 0, width: source.width, height: source.height };
+        const scale = Math.min(target.width / sourceBounds.width, target.height / sourceBounds.height);
+        const width = sourceBounds.width * scale;
+        const height = sourceBounds.height * scale;
+        context.drawImage(
+            source,
+            sourceBounds.x,
+            sourceBounds.y,
+            sourceBounds.width,
+            sourceBounds.height,
+            target.x + (target.width - width) / 2,
+            target.y + (target.height - height) / 2,
+            width,
+            height
+        );
+    };
+    const createTrophyShareCard = async () => {
+        const source = root.querySelector('[data-rts-main-model] canvas');
+        if (!source || !source.width || !source.height) {
+            throw new Error('The rendered trophy canvas is unavailable.');
+        }
+        const width = 1600;
+        const height = 900;
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+        const backgroundValue = window.getComputedStyle(root).backgroundImage || '';
+        const backgroundMatch = backgroundValue.match(/url\(["']?(.*?)["']?\)/i);
+        const imageUrl = (selector) => {
+            const image = root.querySelector(selector);
+            return image && image.currentSrc ? image.currentSrc : (image && image.src ? image.src : '');
+        };
+        const [
+            backgroundImage,
+            titleLeftArt,
+            titleRightArt,
+            subheadingArt,
+            detailsFrameArt,
+            referralsArt,
+            calendarArt
+        ] = await Promise.all([
+            loadImage(backgroundMatch ? backgroundMatch[1] : ''),
+            loadImage(imageUrl('.rts-single-trophy__title-art.is-left img')),
+            loadImage(imageUrl('.rts-single-trophy__title-art.is-right img')),
+            loadImage(imageUrl('.rts-single-trophy__subheading-art')),
+            loadImage(imageUrl('.rts-single-trophy__details-frame')),
+            loadImage(imageUrl('.rts-single-trophy__referrals img')),
+            loadImage(imageUrl('.rts-single-trophy__unlocked img'))
+        ]);
+        if (backgroundImage) {
+            drawImageCover(context, backgroundImage, width, height);
+        } else {
+            const background = context.createRadialGradient(
+                width * 0.65,
+                height * 0.4,
+                0,
+                width * 0.65,
+                height * 0.4,
+                width * 0.72
+            );
+            background.addColorStop(0, '#132538');
+            background.addColorStop(0.45, '#06111d');
+            background.addColorStop(1, '#01060b');
+            context.fillStyle = background;
+            context.fillRect(0, 0, width, height);
+        }
+        const vignette = context.createRadialGradient(
+            width * 0.63,
+            height * 0.42,
+            0,
+            width * 0.63,
+            height * 0.42,
+            width * 0.78
+        );
+        vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        vignette.addColorStop(0.72, 'rgba(0, 0, 0, .25)');
+        vignette.addColorStop(1, 'rgba(0, 0, 0, .72)');
+        context.fillStyle = vignette;
+        context.fillRect(0, 0, width, height);
+
+        await Promise.race([
+            document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve(),
+            new Promise((resolve) => window.setTimeout(resolve, 3000))
+        ]);
+        await nextPaint();
+
+        drawTrophyContained(context, source, getTrophyBounds(source), {
+            x: 190,
+            y: 125,
+            width: 1220,
+            height: 740
+        });
+
+        context.save();
+        context.globalCompositeOperation = 'screen';
+        drawImageContained(context, titleLeftArt, 250, 8, 270, 56);
+        drawImageContained(context, titleRightArt, 1080, 8, 270, 56);
+        drawImageContained(context, subheadingArt, 650, 88, 300, 44);
+        context.restore();
+        context.shadowColor = 'rgba(0, 0, 0, .9)';
+        context.shadowBlur = 12;
+        drawFittedText(context, 'MARATHON TROPHY', 800, 37, 720, 56, { weight: 600 });
+        drawFittedText(
+            context,
+            `${String(root.dataset.plaqueMilestone || 'TROPHY').replace(/\s+TROPHY$/i, '')} — ${root.dataset.shareMarathon || 'FOUNDING RUNNER MARATHON'}`,
+            800,
+            78,
+            720,
+            25,
+            { family: 'Arial, sans-serif', color: '#e5ad4f', weight: 500 }
+        );
+        context.shadowBlur = 0;
+
+        const panel = { x: 42, y: 130, width: 365, height: 705 };
+        context.fillStyle = 'rgba(2, 12, 21, .92)';
+        context.fillRect(panel.x, panel.y, panel.width, panel.height);
+        if (detailsFrameArt) {
+            context.drawImage(detailsFrameArt, panel.x, panel.y, panel.width, panel.height);
+        } else {
+            context.strokeStyle = '#d99a2b';
+            context.lineWidth = 3;
+            context.strokeRect(panel.x, panel.y, panel.width, panel.height);
+            context.strokeStyle = 'rgba(217, 154, 43, .42)';
+            context.lineWidth = 1;
+            context.strokeRect(panel.x + 12, panel.y + 12, panel.width - 24, panel.height - 24);
+        }
+
+        const panelCenter = panel.x + panel.width / 2;
+        drawFittedText(context, 'MARATHON TROPHY', panelCenter, 248, 315, 31);
+        drawFittedText(context, String(root.dataset.plaqueMilestone || 'TROPHY').toUpperCase(), panelCenter, 272, 315, 26, { weight: 500 });
+        drawFittedText(context, String(root.dataset.shareMarathon || 'FOUNDING RUNNER MARATHON').toUpperCase(), panelCenter, 300, 315, 17, {
+            family: 'Arial, sans-serif',
+            color: '#efc36e',
+            weight: 600,
+            minimumSize: 14
+        });
+        context.strokeStyle = 'rgba(217, 154, 43, .5)';
+        context.beginPath();
+        context.moveTo(panel.x + 30, 319);
+        context.lineTo(panel.x + panel.width - 30, 319);
+        context.stroke();
+        drawFittedText(context, String(root.dataset.plaqueMember || '').toUpperCase(), panelCenter, 365, 315, 28, { color: '#fff0bd' });
+        drawFittedText(context, root.dataset.plaqueRunner || '', panelCenter, 395, 315, 20, { color: '#f7d995', weight: 500 });
+        drawImageContained(context, referralsArt, panel.x + 30, 407, 38, 38);
+        drawFittedText(context, String(root.dataset.plaqueReferrals || '').toUpperCase(), panelCenter + (referralsArt ? 24 : 0), 433, referralsArt ? 250 : 315, 20, {
+            family: 'Arial, sans-serif',
+            color: '#efc36e',
+            weight: 700
+        });
+        context.strokeStyle = 'rgba(217, 154, 43, .5)';
+        context.beginPath();
+        context.moveTo(panel.x + 30, 465);
+        context.lineTo(panel.x + panel.width - 30, 465);
+        context.stroke();
+        drawFittedText(context, root.dataset.plaqueSplitLabel || 'SPLIT DAYS', panel.x + 100, 500, 140, 16, {
+            family: 'Arial, sans-serif',
+            weight: 700
+        });
+        drawFittedText(context, root.dataset.plaqueTotalLabel || 'TOTAL DAYS', panel.x + 265, 500, 140, 16, {
+            family: 'Arial, sans-serif',
+            weight: 700
+        });
+        drawFittedText(context, root.dataset.plaqueSplitDays || '0', panel.x + 100, 545, 140, 38);
+        drawFittedText(context, root.dataset.plaqueTotalDays || '0', panel.x + 265, 545, 140, 38);
+        context.strokeStyle = 'rgba(217, 154, 43, .55)';
+        context.beginPath();
+        context.moveTo(panelCenter, 485);
+        context.lineTo(panelCenter, 562);
+        context.stroke();
+        context.beginPath();
+        context.moveTo(panel.x + 30, 582);
+        context.lineTo(panel.x + panel.width - 30, 582);
+        context.stroke();
+        drawFittedText(context, 'UNLOCKED', panelCenter, 616, 315, 16, {
+            family: 'Arial, sans-serif',
+            color: '#efc36e',
+            weight: 700
+        });
+        drawImageContained(context, calendarArt, panel.x + 72, 605, 38, 38);
+        drawFittedText(context, root.dataset.plaqueEarnedDate || '', panelCenter + (calendarArt ? 22 : 0), 646, calendarArt ? 255 : 315, 21, { color: '#ffe7a4' });
+        drawFittedText(context, '“Every mile. Every achievement.”', panelCenter, 680, 315, 18, {
+            color: '#efc36e',
+            weight: 500,
+            minimumSize: 14
+        });
+        drawFittedText(context, 'Every victory.', panelCenter, 709, 315, 18, {
+            color: '#efc36e',
+            weight: 500,
+            minimumSize: 14
+        });
+        drawFittedText(context, 'Your voyage. Your legacy.”', panelCenter, 738, 315, 18, {
+            color: '#efc36e',
+            weight: 500,
+            minimumSize: 14
+        });
+        //drawFittedText(context, 'RUN THE SEAS', panelCenter, 780, 315, 18, { color: '#f5c363', weight: 700 });
+
+        return new Promise((resolve, reject) => {
+            canvas.toBlob((blob) => {
+                if (blob && blob.size) resolve(blob);
+                else reject(new Error('The trophy picture was empty.'));
+            }, 'image/png');
+        });
+    };
+    const downloadPicture = (blob, filename) => {
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    };
+
+    const dialog = document.createElement('div');
+    dialog.className = 'rts-single-trophy__share-dialog';
+    dialog.hidden = true;
+    dialog.innerHTML = `
+        <div class="rts-single-trophy__share-panel" role="dialog" aria-modal="true" aria-label="Share trophy picture">
+            <button class="rts-single-trophy__share-close" type="button" data-rts-share-close aria-label="Close share options">×</button>
+            <h2>Share Trophy Picture</h2>
+            <p data-rts-share-message>Preparing your trophy picture…</p>
+            <img data-rts-share-preview alt="Preview of the trophy picture">
+            <div class="rts-single-trophy__share-choices">
+                <button type="button" data-rts-share-native disabled>Share Picture</button>
+                <button type="button" data-rts-share-copy disabled>Copy Picture</button>
+                <button type="button" data-rts-share-download disabled>Download Picture</button>
+            </div>
+        </div>`;
+    root.appendChild(dialog);
+
+    const message = dialog.querySelector('[data-rts-share-message]');
+    const preview = dialog.querySelector('[data-rts-share-preview]');
+    const nativeButton = dialog.querySelector('[data-rts-share-native]');
+    const copyButton = dialog.querySelector('[data-rts-share-copy]');
+    const downloadButton = dialog.querySelector('[data-rts-share-download]');
+    const closeButton = dialog.querySelector('[data-rts-share-close]');
+    let preparedBlob = null;
+    let preparedFile = null;
+    let previewUrl = '';
+    let preparing = false;
+
+    const closeDialog = () => {
+        dialog.hidden = true;
+        shareButton.setAttribute('aria-expanded', 'false');
+        shareButton.focus();
+    };
+    closeButton.addEventListener('click', closeDialog);
+    dialog.addEventListener('click', (event) => {
+        if (event.target === dialog) closeDialog();
+    });
+    root.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && !dialog.hidden) closeDialog();
+    });
+
+    shareButton.setAttribute('aria-haspopup', 'dialog');
+    shareButton.setAttribute('aria-expanded', 'false');
+    shareButton.addEventListener('click', async () => {
+        dialog.hidden = false;
+        shareButton.setAttribute('aria-expanded', 'true');
+        closeButton.focus();
+        if (preparing) return;
+
+        preparing = true;
+        preparedBlob = null;
+        preparedFile = null;
+        nativeButton.disabled = true;
+        copyButton.disabled = true;
+        downloadButton.disabled = true;
+        preview.removeAttribute('src');
+        message.textContent = 'Preparing your trophy picture…';
+        showStatus('Preparing trophy picture…', true);
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+            previewUrl = '';
+        }
+
+        try {
+            preparedBlob = await createTrophyShareCard();
+            preparedFile = new File(
+                [preparedBlob],
+                shareButton.dataset.shareFilename || 'run-the-seas-trophy.png',
+                { type: 'image/png' }
+            );
+            previewUrl = URL.createObjectURL(preparedBlob);
+            preview.src = previewUrl;
+            const shareData = {
+                title: shareButton.dataset.shareTitle || 'Run The Seas Trophy',
+                text: shareButton.dataset.shareText || 'My Run The Seas trophy',
+                files: [preparedFile]
+            };
+            let nativeSupported = false;
+            try {
+                nativeSupported = Boolean(
+                    navigator.share && (!navigator.canShare || navigator.canShare(shareData))
+                );
+            } catch (error) {
+                nativeSupported = false;
+            }
+            const copySupported = Boolean(navigator.clipboard && window.ClipboardItem);
+            nativeButton.disabled = !nativeSupported;
+            copyButton.disabled = !copySupported;
+            downloadButton.disabled = false;
+            message.textContent = nativeSupported
+                ? 'Choose how you want to share your picture.'
+                : 'This browser cannot open image share options. You can copy or download the picture.';
+            showStatus('Trophy picture ready.');
+        } catch (error) {
+            console.error('Unable to create the trophy picture.', error);
+            message.textContent = 'Unable to create the trophy picture. Please close this window and try again.';
+            showStatus('Unable to create the trophy picture. Please try again.');
+        } finally {
+            preparing = false;
+        }
+    });
+
+    nativeButton.addEventListener('click', async () => {
+        if (!preparedFile || !navigator.share) return;
+        try {
+            await navigator.share({
+                title: shareButton.dataset.shareTitle || 'Run The Seas Trophy',
+                text: shareButton.dataset.shareText || 'My Run The Seas trophy',
+                files: [preparedFile]
+            });
+            message.textContent = 'Trophy picture shared.';
+            showStatus('Trophy picture shared.');
+        } catch (error) {
+            if (error && error.name === 'AbortError') return;
+            message.textContent = 'The browser could not open its share options. Try Copy Picture instead.';
+        }
+    });
+    copyButton.addEventListener('click', async () => {
+        if (!preparedBlob || !navigator.clipboard || !window.ClipboardItem) return;
+        try {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': preparedBlob })]);
+            message.textContent = 'Trophy picture copied. You can paste it into a message or post.';
+            showStatus('Trophy picture copied.');
+        } catch (error) {
+            message.textContent = 'The browser could not copy the picture. Use Download Picture instead.';
+        }
+    });
+    downloadButton.addEventListener('click', () => {
+        if (!preparedBlob) return;
+        downloadPicture(preparedBlob, shareButton.dataset.shareFilename || 'run-the-seas-trophy.png');
+        message.textContent = 'Trophy picture downloaded.';
+        showStatus('Trophy picture downloaded.');
     });
 }
 
