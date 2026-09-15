@@ -9,12 +9,20 @@ class RTS_Registration
 
     private $db;
     private $tracking;
+    private static $hooks_registered = false;
 
     public function __construct($tracking = null)
     {
         global $wpdb;
         $this->db = $wpdb;
         $this->tracking = $tracking;
+
+        // Several feature services use this class. Register its WordPress
+        // callbacks once so constructing a helper cannot duplicate form work.
+        if (self::$hooks_registered) {
+            return;
+        }
+        self::$hooks_registered = true;
 
         // Hook into Fluent Form submission for registration form
         add_action('fluentform/before_insert_submission', array($this, 'handle_registration_submission'), 10, 3);
@@ -26,7 +34,6 @@ class RTS_Registration
 
         // AJAX handlers
         add_action('wp_ajax_rts_get_participant_data', array($this, 'ajax_get_participant_data'));
-        add_action('wp_ajax_nopriv_rts_get_participant_data', array($this, 'ajax_get_participant_data'));
     }
 
     /**
@@ -60,6 +67,31 @@ class RTS_Registration
             error_log('RTS: Fluent Forms registration rejected because age/legal consent was not confirmed');
             return;
         }
+
+        // Legacy Fluent Forms registration must satisfy the same survey
+        // ownership check as the dedicated registration endpoint.
+        $tracking_id = absint($submission_data['tracking_id'] ?? ($_POST['tracking_id'] ?? ($_COOKIE['rts_tracking_id'] ?? 0)));
+        $tracking_token = sanitize_text_field(wp_unslash(
+            $submission_data['tracking_token'] ?? ($_POST['tracking_token'] ?? ($_COOKIE['rts_tracking_token'] ?? ''))
+        ));
+        if (!rts_verify_tracking_access($tracking_id, $tracking_token)) {
+            error_log('RTS: Fluent Forms registration rejected because survey ownership could not be verified');
+            return;
+        }
+
+        $tracking = $this->db->get_row($this->db->prepare(
+            "SELECT email, completion_status FROM {$this->db->prefix}rts_survey_tracking WHERE id = %d",
+            $tracking_id
+        ));
+        if (
+            !$tracking ||
+            'completed' !== $tracking->completion_status ||
+            (!empty($tracking->email) && 0 !== strcasecmp($email, sanitize_email($tracking->email)))
+        ) {
+            error_log('RTS: Fluent Forms registration rejected because the completed survey did not match');
+            return;
+        }
+        $submission_data['tracking_id'] = $tracking_id;
 
         // Check if participant already exists
         $existing = $this->get_participant_by_email($email);
@@ -113,29 +145,11 @@ class RTS_Registration
     {
         global $wpdb;
 
-        // If email is provided, check by email
-        if ($email) {
-            $tracking = $wpdb->get_row(
-                $wpdb->prepare(
-                    "SELECT * FROM {$wpdb->prefix}rts_survey_tracking 
-                    WHERE email = %s AND completion_status = 'completed' 
-                    AND id NOT IN (SELECT survey_tracking_id FROM {$wpdb->prefix}rts_participants WHERE survey_tracking_id IS NOT NULL)
-                    ORDER BY completed_at DESC LIMIT 1",
-                    $email
-                )
-            );
-            if ($tracking) {
-                return $tracking;
-            }
-        }
-
-        // Check by tracking ID from cookie
-        $tracking_id = (
-            isset($_COOKIE['rts_survey_cookie_consent']) &&
-            $_COOKIE['rts_survey_cookie_consent'] === 'accepted' &&
-            isset($_COOKIE['rts_tracking_id'])
-        ) ? intval($_COOKIE['rts_tracking_id']) : 0;
-        if ($tracking_id) {
+        // A survey may be resumed only by its essential access cookie; an
+        // email address or numeric ID by itself is never sufficient.
+        $tracking_id = isset($_COOKIE['rts_tracking_id']) ? absint($_COOKIE['rts_tracking_id']) : 0;
+        $tracking_token = sanitize_text_field(wp_unslash($_COOKIE['rts_tracking_token'] ?? ''));
+        if ($tracking_id && rts_verify_tracking_access($tracking_id, $tracking_token)) {
             $tracking = $wpdb->get_row(
                 $wpdb->prepare(
                     "SELECT * FROM {$wpdb->prefix}rts_survey_tracking 
@@ -144,27 +158,7 @@ class RTS_Registration
                     $tracking_id
                 )
             );
-            if ($tracking) {
-                return $tracking;
-            }
-        }
-
-        // Check by submission ID from cookie
-        $submission_id = (
-            isset($_COOKIE['rts_survey_cookie_consent']) &&
-            $_COOKIE['rts_survey_cookie_consent'] === 'accepted' &&
-            isset($_COOKIE['rts_submission_id'])
-        ) ? sanitize_text_field($_COOKIE['rts_submission_id']) : '';
-        if ($submission_id) {
-            $tracking = $wpdb->get_row(
-                $wpdb->prepare(
-                    "SELECT * FROM {$wpdb->prefix}rts_survey_tracking 
-                    WHERE submission_id = %s AND completion_status = 'completed' 
-                    AND id NOT IN (SELECT survey_tracking_id FROM {$wpdb->prefix}rts_participants WHERE survey_tracking_id IS NOT NULL)",
-                    $submission_id
-                )
-            );
-            if ($tracking) {
+            if ($tracking && (!$email || 0 === strcasecmp(sanitize_email($email), sanitize_email($tracking->email)))) {
                 return $tracking;
             }
         }
@@ -1389,7 +1383,7 @@ class RTS_Registration
         );
 
         if (!$referrer) {
-            error_log("RTS: Invalid referral code: {$referral_code}");
+            error_log('RTS: Invalid referral code supplied');
             return false;
         }
 
@@ -1412,7 +1406,7 @@ class RTS_Registration
         );
 
         if ($existing) {
-            error_log("RTS: Referral already exists for {$participant->email} by referrer {$referrer->id}");
+            error_log('RTS: Referral record already exists for participant ' . $participant_id);
             // Update existing referral with participant ID if missing
             $this->db->update(
                 $this->db->prefix . 'rts_referrals',
@@ -1651,9 +1645,9 @@ class RTS_Registration
                 'verification_sent',
                 'Verification email sent'
             );
-            error_log('RTS: Verification email sent to ' . $participant->email);
+            error_log('RTS: Verification email sent for participant ' . $participant_id);
         } else {
-            error_log('RTS: Verification email FAILED for ' . $participant->email);
+            error_log('RTS: Verification email failed for participant ' . $participant_id);
         }
 
         return $sent;
@@ -3094,6 +3088,11 @@ class RTS_Registration
      */
     public function ajax_get_participant_data()
     {
+        check_ajax_referer('rts_admin_nonce', 'nonce');
+        if (!current_user_can(RTS_MANAGE_CAPABILITY)) {
+            wp_send_json_error('You do not have permission to view participant data.', 403);
+        }
+
         if (!isset($_POST['email'])) {
             wp_send_json_error('Email required');
             return;

@@ -13,10 +13,29 @@ class RTS_Participant_Operations
     {
         $this->registration = $registration instanceof RTS_Registration ? $registration : new RTS_Registration();
 
-        add_action('init', array($this, 'create_review_table'));
+        $this->maybe_upgrade_review_table();
         add_action('init', array($this, 'handle_participant_record_update'));
         add_action('wp_ajax_rts_participant_action', array($this, 'ajax_participant_action'));
         add_action('wp_ajax_rts_export_participants', array($this, 'ajax_export_participants'));
+    }
+
+    /** Create or alter the review table only when its schema version changes. */
+    private function maybe_upgrade_review_table()
+    {
+        $schema_version = '1.0';
+        if (get_option('rts_duplicate_review_schema_version') === $schema_version) {
+            return;
+        }
+        if (!rts_acquire_upgrade_lock('duplicate_review_schema')) {
+            return;
+        }
+
+        try {
+            $this->create_review_table();
+            update_option('rts_duplicate_review_schema_version', $schema_version, false);
+        } finally {
+            rts_release_upgrade_lock('duplicate_review_schema');
+        }
     }
 
     public function create_review_table()

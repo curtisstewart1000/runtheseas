@@ -469,6 +469,19 @@
     pointer-events: none;
 }
 
+.rts-single-trophy.has-static-trophy-fallback .rts-single-trophy__model {
+    display: none;
+}
+
+.rts-single-trophy.has-static-trophy-fallback .rts-single-trophy__arrow,
+.rts-single-trophy.has-static-trophy-fallback .rts-single-trophy__rail {
+    display: none;
+}
+
+.rts-single-trophy.has-static-trophy-fallback .rts-single-trophy__interaction {
+    cursor: default;
+}
+
 .rts-single-trophy__empty-model {
     display: grid;
     place-items: center;

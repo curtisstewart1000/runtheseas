@@ -8,21 +8,20 @@ class RTS_Race_Manager {
     private $db;
     private $registration;
     
-    public function __construct() {
+    public function __construct($registration = null) {
         global $wpdb;
         $this->db = $wpdb;
-        $this->registration = new RTS_Registration();
+        $this->registration = $registration instanceof RTS_Registration
+            ? $registration
+            : new RTS_Registration();
         
         // Admin menu
         add_action('admin_menu', array($this, 'add_admin_menu'));
         
         // AJAX handlers
         add_action('wp_ajax_rts_register_for_race', array($this, 'ajax_register_for_race'));
-        add_action('wp_ajax_nopriv_rts_register_for_race', array($this, 'ajax_register_for_race'));
         add_action('wp_ajax_rts_get_user_trophies', array($this, 'ajax_get_user_trophies'));
-        add_action('wp_ajax_nopriv_rts_get_user_trophies', array($this, 'ajax_get_user_trophies'));
         add_action('wp_ajax_rts_earn_trophy', array($this, 'ajax_earn_trophy'));
-        add_action('wp_ajax_nopriv_rts_earn_trophy', array($this, 'ajax_earn_trophy'));
         
         // Shortcodes
         add_shortcode('rts_races', array($this, 'render_races_page'));       
@@ -680,5 +679,3 @@ class RTS_Race_Manager {
     }
 }
 
-// Initialize race manager
-new RTS_Race_Manager();

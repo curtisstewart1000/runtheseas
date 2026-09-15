@@ -35,9 +35,8 @@ trait RTS_Registration_Ajax
         $address_2 = sanitize_text_field(wp_unslash($_POST['address_2'] ?? ''));
 
         $tracking_id = isset($_POST['tracking_id']) ? intval($_POST['tracking_id']) : 0;
+        $tracking_token = sanitize_text_field(wp_unslash($_POST['tracking_token'] ?? ''));
         $form_id = isset($_POST['form_id']) ? intval($_POST['form_id']) : 0;
-
-        error_log('RTS: Registration attempt - Email: ' . $email . ', Tracking ID: ' . $tracking_id);
 
         $required_fields = array(
             'first_name' => array('label' => 'First name', 'value' => $first_name),
@@ -72,7 +71,6 @@ trait RTS_Registration_Ajax
         }
 
         if (!is_email($email)) {
-            error_log('RTS: Invalid email: ' . $email);
             wp_send_json_error('Please enter a valid email address.');
             return;
         }
@@ -93,24 +91,31 @@ trait RTS_Registration_Ajax
             return;
         }
 
-        // A completed survey is linked by its immutable tracking ID
+        // A completed survey is linked only when the caller proves ownership
+        // of its immutable tracking record.
         if ($tracking_id) {
             global $wpdb;
+            if (!rts_verify_tracking_access($tracking_id, $tracking_token)) {
+                wp_send_json_error('Your survey session is invalid or expired. Please complete the survey again.', 403);
+                return;
+            }
             $tracking = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT id, completion_status FROM {$wpdb->prefix}rts_survey_tracking WHERE id = %d",
+                    "SELECT id, form_id, email, completion_status FROM {$wpdb->prefix}rts_survey_tracking WHERE id = %d",
                     $tracking_id
                 )
             );
 
             if (!$tracking || $tracking->completion_status !== 'completed') {
-                error_log('RTS: Survey not completed for tracking ID: ' . $tracking_id);
                 wp_send_json_error('Please complete the survey before claiming your rewards.');
                 return;
             }
-            error_log('RTS: Survey completed for tracking ID: ' . $tracking_id);
+            if (!empty($tracking->email) && 0 !== strcasecmp($email, sanitize_email($tracking->email))) {
+                wp_send_json_error('The registration email must match the completed survey.', 403);
+                return;
+            }
+            $form_id = absint($tracking->form_id);
         } else {
-            error_log('RTS: No tracking ID provided');
             wp_send_json_error('Please complete the survey before registering.');
             return;
         }
@@ -125,9 +130,9 @@ trait RTS_Registration_Ajax
         // Check if already registered by email
         $existing = $registration->get_participant_by_email($email);
         if ($existing) {
-            error_log('RTS: Email already registered: ' . $email . ', participant ID: ' . $existing->id);
-            // If user already registered but this survey isn't linked, link it
-            if ($tracking_id) {
+            $owns_existing_account = is_user_logged_in()
+                && (int) $existing->user_id === get_current_user_id();
+            if ($tracking_id && $owns_existing_account) {
                 global $wpdb;
                 $wpdb->update(
                     $wpdb->prefix . 'rts_participants',
@@ -143,8 +148,15 @@ trait RTS_Registration_Ajax
                 ));
                 return;
             }
-            wp_send_json_error('This email is already registered. Please login or use a different email.');
+            wp_send_json_error(array(
+                'message' => 'This email already has an account. Please log in before linking a new survey.',
+                'login_required' => true,
+                'login_url' => rts_get_member_login_url(home_url('/captains-suite/')),
+            ), 409);
             return;
+        }
+        if (!rts_consume_rate_limit('registration', 15, HOUR_IN_SECONDS)) {
+            wp_send_json_error('Too many registration attempts. Please try again later.', 429);
         }
 
         // The registration name is displayed on member and QR-card surfaces,
@@ -176,11 +188,10 @@ trait RTS_Registration_Ajax
             $address_2
         );
         if (!$user_id) {
-            error_log('RTS: Failed to create WordPress user for: ' . $email);
+            error_log('RTS: Failed to create WordPress user during registration');
             wp_send_json_error('Failed to create user account. Please try again.');
             return;
         }
-        error_log('RTS: Created WordPress user ID: ' . $user_id . ' for: ' . $email);
 
         $request_cabin_credit = isset($_POST['request_cabin_credit']) &&
             $_POST['request_cabin_credit'] === 'Yes';
@@ -197,11 +208,10 @@ trait RTS_Registration_Ajax
         );
 
         if (!$participant_id) {
-            error_log('RTS: Failed to create participant for: ' . $email);
+            error_log('RTS: Failed to create participant during registration');
             wp_send_json_error('Failed to create registration. Please try again.');
             return;
         }
-        error_log('RTS: Created participant ID: ' . $participant_id . ' for: ' . $email);
 
         // Store the email against the completed survey
         if ($tracking_id) {
@@ -213,7 +223,6 @@ trait RTS_Registration_Ajax
                 array('%s'),
                 array('%d')
             );
-            error_log('RTS: Updated tracking record ' . $tracking_id . ' with email: ' . $email);
         }
 
         // Handle cabin credit if requested
@@ -257,21 +266,16 @@ trait RTS_Registration_Ajax
         // ============================================
         // OPTIMIZATION: Store email data for background sending
         // ============================================
-        $email_data = array(
-            'participant_id' => $participant_id,
-            'email' => $email,
-            'first_name' => $first_name,
-            'last_name' => $last_name,
-            'participant' => $participant,
-            'referral_link' => $clean_referral_url,
-            'post_data' => $_POST,
-            'tracking_id' => $tracking_id,
-            'form_id' => $form_id,
-            'user_id' => $user_id
-        );
+        // Store only the database identifier. The worker re-fetches the
+        // participant, so duplicating PII, nonces, and access tokens in the
+        // options table is unnecessary.
+        $email_data = array('participant_id' => $participant_id);
 
-        // Store in database for background processing
-        update_option('rts_pending_registration_' . $participant_id, $email_data);
+        // Pending jobs must not be autoloaded on every WordPress request.
+        $pending_key = 'rts_pending_registration_' . $participant_id;
+        delete_option($pending_key);
+        add_option($pending_key, $email_data, '', 'no');
+        set_transient('rts_pending_registration_hint', true, HOUR_IN_SECONDS);
         error_log('RTS: Stored pending registration for participant: ' . $participant_id);
 
         // Send the verification email
@@ -849,27 +853,18 @@ trait RTS_Registration_Ajax
      */
     public function ajax_check_registration_status()
     {
-        // Debug logging
-        error_log('RTS: AJAX check registration status called');
-        error_log('RTS: POST data: ' . print_r($_POST, true));
-
-        // Verify nonce
-        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'rts_nonce')) {
-            error_log('RTS: Invalid nonce for registration status check');
-            wp_send_json_error('Invalid nonce');
-            return;
+        check_ajax_referer('rts_nonce', 'nonce');
+        if (!is_user_logged_in()) {
+            wp_send_json_error('Authentication required.', 401);
         }
 
-        if (!isset($_POST['email'])) {
-            error_log('RTS: No email provided');
+        $current_user = wp_get_current_user();
+        $email = current_user_can(RTS_MANAGE_CAPABILITY) && isset($_POST['email'])
+            ? sanitize_email(wp_unslash($_POST['email']))
+            : sanitize_email($current_user->user_email);
+        if (!$email) {
             wp_send_json_error('Email required');
-            return;
         }
-
-        $email = sanitize_email($_POST['email']);
-        $tracking_id = isset($_POST['tracking_id']) ? intval($_POST['tracking_id']) : 0;
-
-        error_log('RTS: Checking registration status for email: ' . $email . ', tracking_id: ' . $tracking_id);
 
         // Initialize registration
         if (!class_exists('RTS_Registration')) {
@@ -878,24 +873,7 @@ trait RTS_Registration_Ajax
 
         $registration = new RTS_Registration($this->tracking);
         $participant = $registration->get_participant_by_email($email);
-
-        if ($participant) {
-            error_log('RTS: Participant found: ' . $participant->id);
-            wp_send_json_success(array(
-                'is_registered' => true,
-                'first_name' => $participant->first_name,
-                'last_name' => $participant->last_name,
-                'cabin_credit_number' => $participant->cabin_credit_number,
-                'cabin_credit_status' => $participant->cabin_credit_status,
-                'captain_miles_balance' => $participant->captain_miles_balance,
-                'referral_count' => $participant->referral_count
-            ));
-        } else {
-            error_log('RTS: No participant found for email: ' . $email);
-            wp_send_json_success(array(
-                'is_registered' => false
-            ));
-        }
+        wp_send_json_success(array('is_registered' => (bool) $participant));
     }
 
     /**
@@ -939,7 +917,6 @@ trait RTS_Registration_Ajax
         // Build the full URL
         $referral_url = $base_url . '?' . $query_string;
 
-        error_log('RTS: Generated referral URL: ' . $referral_url);
 
         return $referral_url;
     }
@@ -1011,7 +988,6 @@ trait RTS_Registration_Ajax
         update_user_meta($user_id, 'rts_address', $address ?? '');
         update_user_meta($user_id, 'rts_address_2', $address_2 ?? '');
 
-        error_log('RTS: Created WordPress user ID: ' . $user_id . ' with email: ' . $email);
         // Keep a marker only; never store a plaintext password in user meta.
         update_user_meta($user_id, 'rts_temp_password', '1');
 

@@ -238,7 +238,6 @@ function rts_child_enqueue_captains_suite_auth_skin( $force = false ) {
 	wp_localize_script( 'rts-buddynext-captains-suite-auth', 'rtsCaptainsSuiteAuth', array( 'loginLogoUrl' => rts_child_auth_media_url( $auth_assets['login_logo'] ?? '' ) ) );
 }
 add_action( 'wp_enqueue_scripts', 'rts_child_enqueue_captains_suite_auth_skin', PHP_INT_MAX );
-add_action( 'wp_head', 'rts_child_enqueue_captains_suite_auth_skin', 1 );
 
 /** Return the same logo used by the Captain's Suite login card. */
 function rts_child_captains_suite_login_logo_url() {
@@ -277,7 +276,9 @@ function rts_child_first_passcode_text( $translated, $text, $domain ) {
 	);
 	return $labels[ $text ] ?? $translated;
 }
-add_filter( 'gettext', 'rts_child_first_passcode_text', 20, 3 );
+if ( '1' === sanitize_text_field( wp_unslash( $_GET['rts_first_visit'] ?? '' ) ) ) {
+	add_filter( 'gettext', 'rts_child_first_passcode_text', 20, 3 );
+}
 
 /**
  * Embed the BuddyNext Captain's Suite login at any page-builder location.
@@ -473,8 +474,6 @@ function rts_add_custom_rail_items_after_feed( array $items ): array {
 		return $items;
 	}
 	
-	error_log("items: ". print_r($items, true));
-
 	$profile_url = trailingslashit(
 		\BuddyNext\Core\PageRouter::profile_url( $user_id )
 	);
@@ -818,4 +817,7 @@ function rts_child_remove_buddynext_profile_photo( int $user_id ): void {
 
 	delete_user_meta( $user_id, 'bn_avatar' );
 }
+
+//fixed for video play issue
+add_filter( 'buddynext_pwa_register_sw', '__return_false' );
 

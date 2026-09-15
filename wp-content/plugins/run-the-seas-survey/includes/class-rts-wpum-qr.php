@@ -18,19 +18,15 @@ class RTS_BuddyPress_QR
     {
         global $wpdb;
         $this->db = $wpdb;
-        $this->registration = new RTS_Registration();
+        $plugin = function_exists('rts_init') ? rts_init() : null;
+        $this->registration = $plugin && $plugin->registration instanceof RTS_Registration
+            ? $plugin->registration
+            : new RTS_Registration();
 
         // Set up upload directories for QR cards
         $upload_dir = wp_upload_dir();
         $this->upload_dir = $upload_dir['basedir'] . '/rts-qr-cards/';
         $this->upload_url = $upload_dir['baseurl'] . '/rts-qr-cards/';
-
-        if (!file_exists($this->upload_dir)) {
-            wp_mkdir_p($this->upload_dir);
-        }
-        if (!file_exists($this->upload_dir . 'index.html')) {
-            file_put_contents($this->upload_dir . 'index.html', '');
-        }
 
         // Get terms version
         $this->terms_version = get_option('rts_qr_terms_version', '1.0');
@@ -48,6 +44,17 @@ class RTS_BuddyPress_QR
         add_action('wp_ajax_rts_generate_qr_card', array($this, 'ajax_generate_qr_card'));
         add_action('wp_ajax_rts_check_qr_terms', array($this, 'ajax_check_qr_terms'));
         add_action('wp_ajax_rts_accept_qr_terms', array($this, 'ajax_accept_qr_terms'));
+    }
+
+    /** Prepare QR storage only when a card is actually being generated. */
+    private function ensure_upload_directory()
+    {
+        if (!is_dir($this->upload_dir)) {
+            wp_mkdir_p($this->upload_dir);
+        }
+        if (!file_exists($this->upload_dir . 'index.html')) {
+            file_put_contents($this->upload_dir . 'index.html', '');
+        }
     }
 
     /**
@@ -443,6 +450,14 @@ class RTS_BuddyPress_QR
 
         if (isset($legacy_sections[$legacy_page])) {
             $section = $legacy_sections[$legacy_page];
+        }
+
+        if (in_array($section, array('surveys', 'survey-settings', 'referrals', 'leaderboard'), true)
+            && !class_exists('RTS_Admin')) {
+            require_once RTS_PLUGIN_PATH . 'includes/class-rts-admin.php';
+        }
+        if ('analytics' === $section && !class_exists('RTS_Analytics')) {
+            require_once RTS_PLUGIN_PATH . 'includes/class-rts-analytics.php';
         }
 
         echo '<div class="rts-admin-profile">';
@@ -988,6 +1003,7 @@ class RTS_BuddyPress_QR
             imagedestroy($text_image);
         }
 
+        $this->ensure_upload_directory();
         $filename = 'qr_card_' . $participant->id . '_' . time() . '.png';
         $filepath = $this->upload_dir . $filename;
         $fileurl = $this->upload_url . $filename;
@@ -1536,6 +1552,7 @@ class RTS_BuddyPress_QR
         }
 
         // Save image
+        $this->ensure_upload_directory();
         $filename = 'qr_card_' . $participant->id . '_' . time() . '.png';
         $filepath = $this->upload_dir . $filename;
         $fileurl = $this->upload_url . $filename;
@@ -1950,7 +1967,6 @@ function rts_init_buddypress_qr()
     global $rts_buddypress_qr_instance;
     if (!isset($rts_buddypress_qr_instance) && class_exists('RTS_BuddyPress_QR')) {
         $rts_buddypress_qr_instance = new RTS_BuddyPress_QR();
-        error_log('RTS: BuddyPress QR integration initialized');
     }
     return $rts_buddypress_qr_instance;
 }

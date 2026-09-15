@@ -842,12 +842,13 @@ function rts_process_pending_registrations()
 
     global $wpdb;
     $pending = $wpdb->get_results(
-        "SELECT option_name, option_value FROM {$wpdb->options} 
-         WHERE option_name LIKE 'rts_pending_registration_%'"
+        "SELECT option_name, option_value FROM {$wpdb->options}
+         WHERE option_name REGEXP '^rts_pending_registration_[0-9]+$'"
     );
 
     if (empty($pending)) {
         error_log('RTS: No pending registrations found');
+        delete_transient('rts_pending_registration_hint');
         delete_transient($lock_key);
         return;
     }
@@ -865,12 +866,18 @@ function rts_process_pending_registrations()
 
         $participant_id = $email_data['participant_id'];
         $user_id = $email_data['user_id'] ?? 0;
-        $email = $email_data['email'] ?? '';
-
-        error_log('RTS: Processing participant: ' . $participant_id . ' (email: ' . $email . ')');
+        error_log('RTS: Processing pending participant: ' . $participant_id);
 
         // Check if already processed - if so, skip and delete
-        $already_processed = get_option('rts_registration_processed_' . $participant_id);
+        $processed_key = 'rts_registration_processed_' . $participant_id;
+        $already_processed = get_transient($processed_key);
+        if (!$already_processed) {
+            // Read and retire flags created by older plugin versions.
+            $already_processed = get_option($processed_key);
+            if ($already_processed) {
+                delete_option($processed_key);
+            }
+        }
         if ($already_processed) {
             error_log('RTS: Registration already processed for participant: ' . $participant_id . ' at ' . $already_processed);
             delete_option('rts_pending_registration_' . $participant_id);
@@ -890,11 +897,12 @@ function rts_process_pending_registrations()
             delete_option('rts_pending_registration_' . $participant_id);
             continue;
         }
+        $email = sanitize_email($participant->email);
 
         // CRITICAL: Mark as processed with timestamp and unique identifier
         $process_id = uniqid('rts_process_', true);
         $process_time = current_time('mysql');
-        update_option('rts_registration_processed_' . $participant_id, $process_time . '|' . $process_id);
+        set_transient($processed_key, $process_time . '|' . $process_id, DAY_IN_SECONDS);
 
         // Delete the pending record immediately
         delete_option('rts_pending_registration_' . $participant_id);
@@ -942,9 +950,9 @@ function rts_process_pending_registrations()
             if (method_exists($plugin, 'send_registration_confirmation')) {
                 $sent = $plugin->send_registration_confirmation(
                     $email,
-                    $email_data['post_data'] ?? array(),
+                    array(),
                     $participant,
-                    $email_data['referral_link'] ?? ''
+                    ''
                 );
                 if ($sent) {
                     $emails_sent++;
@@ -961,6 +969,7 @@ function rts_process_pending_registrations()
     }
 
     // Release the lock
+    delete_transient('rts_pending_registration_hint');
     delete_transient($lock_key);
     error_log('RTS: Pending registration processing completed');
 }
@@ -968,7 +977,7 @@ function rts_process_pending_registrations()
 add_action('admin_init', 'rts_process_pending_registrations');
 add_action('rts_cron_process_pending', 'rts_process_pending_registrations');
 
-// Schedule cron job (run every 5 minutes)
+// Keep a twice-hourly fallback for jobs interrupted before the admin trigger.
 if (!wp_next_scheduled('rts_cron_process_pending')) {
     wp_schedule_event(time(), 'twicehourly', 'rts_cron_process_pending');
 }

@@ -22,14 +22,11 @@ class RTS_Analytics {
         add_action('wp_ajax_rts_reset_analytics', array($this, 'ajax_reset_analytics'));
 
         add_action('wp_ajax_rts_get_online_users', array($this, 'ajax_get_online_users'));
-        add_action('wp_ajax_nopriv_rts_get_online_users', array($this, 'ajax_get_online_users'));
 
         add_action('wp_ajax_rts_get_trophy_visits', array($this, 'ajax_get_trophy_visits'));
-        add_action('wp_ajax_nopriv_rts_get_trophy_visits', array($this, 'ajax_get_trophy_visits'));
 
         add_action('wp_ajax_rts_get_logged_in_users', array($this, 'ajax_get_logged_in_users'));
         
-        error_log('RTS Analytics: Initialized');
     }
     
     public function add_admin_menu() {
@@ -383,7 +380,6 @@ class RTS_Analytics {
         
         // Check if questions have answers
         if (!empty($data['questions'])) {
-            error_log('RTS Analytics: First question answers: ' . print_r($data['questions'][0], true));
         }
         
         wp_send_json_success($data);
@@ -1010,6 +1006,9 @@ class RTS_Analytics {
 
     public function ajax_get_online_users() {
         check_ajax_referer('rts_admin_nonce', 'nonce');
+        if (!current_user_can(RTS_MANAGE_CAPABILITY)) {
+            wp_send_json_error('Insufficient permissions.', 403);
+        }
         
         // Get active sessions in last 15 minutes
         global $wpdb;
@@ -1025,6 +1024,9 @@ class RTS_Analytics {
 
     public function ajax_get_trophy_visits() {
         check_ajax_referer('rts_admin_nonce', 'nonce');
+        if (!current_user_can(RTS_MANAGE_CAPABILITY)) {
+            wp_send_json_error('Insufficient permissions.', 403);
+        }
         
         global $wpdb;
         $date_from = sanitize_text_field($_POST['date_from'] ?? '');
@@ -1095,7 +1097,6 @@ function rts_init_bi_dashboard() {
     
     if (!isset($rts_analytics_instance)) {
         $rts_analytics_instance = new RTS_Analytics($tracking);
-        error_log('RTS Analytics: BI Dashboard initialized');
     }
 }
 add_action('admin_init', 'rts_init_bi_dashboard');
@@ -1106,6 +1107,5 @@ add_action('admin_menu', function() {
     if (!isset($rts_analytics_instance)) {
         $tracking = function_exists('rts_init') ? rts_init()->tracking : null;
         $rts_analytics_instance = new RTS_Analytics($tracking);
-        error_log('RTS Analytics: BI Dashboard initialized (fallback)');
     }
 }, 1);

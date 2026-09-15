@@ -103,8 +103,6 @@ function rts_add_user_id_column()
         error_log('RTS: Added user_id column to participants table');
     }
 }
-add_action('init', 'rts_add_user_id_column');
-
 /**
  * Add participant fields introduced after the original registration schema.
  */
@@ -140,6 +138,27 @@ function rts_upgrade_participant_benefit_columns()
         $wpdb->query("ALTER TABLE $table_name ADD UNIQUE KEY certificate_number (certificate_number)");
     }
 }
+
+/** Run legacy participant-column checks only when this schema version changes. */
+function rts_maybe_upgrade_member_profile_schema()
+{
+    $schema_version = '1.0';
+    if (get_option('rts_member_profile_schema_version') === $schema_version) {
+        return;
+    }
+    if (!rts_acquire_upgrade_lock('member_profile_schema')) {
+        return;
+    }
+
+    try {
+        rts_add_user_id_column();
+        rts_upgrade_participant_benefit_columns();
+        update_option('rts_member_profile_schema_version', $schema_version, false);
+    } finally {
+        rts_release_upgrade_lock('member_profile_schema');
+    }
+}
+add_action('plugins_loaded', 'rts_maybe_upgrade_member_profile_schema', 30);
 
 /** Dedicated, on-site replacement for the removed BuddyPress profile tabs. */
 function rts_render_member_profile_shortcode()

@@ -8,17 +8,15 @@ class RTS_Tracking
     {
         $this->db = $database;
         $this->session_id = $this->get_or_create_session();
-        error_log('RTS: Session ID initialized: ' . $this->session_id);
     }
 
     private function get_or_create_session()
     {
         if ($this->has_survey_cookie_consent() && isset($_COOKIE['rts_session_id'])) {
-            error_log('RTS: Found existing session cookie: ' . $_COOKIE['rts_session_id']);
-            return $_COOKIE['rts_session_id'];
+            return sanitize_text_field(wp_unslash($_COOKIE['rts_session_id']));
         }
 
-        $session_id = md5(uniqid() . $_SERVER['REMOTE_ADDR'] . time() . rand());
+        $session_id = bin2hex(random_bytes(32));
 
         // This ID is request-only until the visitor agrees to survey storage.
         return $session_id;
@@ -114,8 +112,6 @@ class RTS_Tracking
 
         $persist_cookies = (bool) $persist_cookies;
 
-        error_log('RTS: start_tracking called for form_id: ' . $form_id . ', session_id: ' . $this->session_id);
-
         $geo = $this->get_geo_data();
         
         // Get referral from URL parameters
@@ -130,13 +126,11 @@ class RTS_Tracking
         // Get referral from URL if not provided
         if (empty($referral_code) && isset($url_params['ref'])) {
             $referral_code = sanitize_text_field($url_params['ref']);
-            error_log('RTS: Referral code found in URL: ' . $referral_code);
         }
         
         // Also check for referral_code parameter
         if (empty($referral_code) && isset($url_params['referral_code'])) {
             $referral_code = sanitize_text_field($url_params['referral_code']);
-            error_log('RTS: Referral code found in URL as referral_code: ' . $referral_code);
         }
         
         // Determine the source
@@ -150,8 +144,7 @@ class RTS_Tracking
         
         // Store referral code in cookie
         if ($persist_cookies && !empty($referral_code) && !headers_sent()) {
-            setcookie('rts_referral_code', $referral_code, time() + (86400 * 30), '/', '', false, true);
-            error_log('RTS: Stored referral code in cookie: ' . $referral_code);
+            rts_set_cookie('rts_referral_code', $referral_code, time() + (86400 * 30), true);
         }
         
         $referrer_url = isset($_SERVER['HTTP_REFERER']) ? sanitize_text_field($_SERVER['HTTP_REFERER']) : '';
@@ -160,11 +153,6 @@ class RTS_Tracking
         $referrer_participant = null;
         if (!empty($referral_code)) {
             $referrer_participant = $this->get_participant_by_referral_code($referral_code);
-            if ($referrer_participant) {
-                error_log('RTS: Valid referral code from participant: ' . $referrer_participant->id);
-            } else {
-                error_log('RTS: Invalid referral code: ' . $referral_code);
-            }
         }
 
         $table_name = $wpdb->prefix . 'rts_survey_tracking';
@@ -179,7 +167,6 @@ class RTS_Tracking
         );
 
         if ($existing) {
-            error_log('RTS: Found existing tracking record: ' . $existing);
             $submission_id = $wpdb->get_var(
                 $wpdb->prepare(
                     "SELECT submission_id FROM $table_name WHERE id = %d",
@@ -229,26 +216,22 @@ class RTS_Tracking
         }
 
         $tracking_id = $wpdb->insert_id;
-        error_log('RTS: New tracking record created with ID: ' . $tracking_id . ' and submission_id: ' . $submission_id);
-
         if ($persist_cookies && !headers_sent()) {
-            setcookie('rts_tracking_id', $tracking_id, time() + (86400 * 30), '/', '', false, true);
-            setcookie('rts_submission_id', $submission_id, time() + (86400 * 30), '/', '', false, true);
+            rts_set_cookie('rts_tracking_id', $tracking_id, time() + (86400 * 30), true);
+            rts_set_cookie(
+                'rts_tracking_token',
+                rts_create_tracking_access_token($tracking_id, $submission_id),
+                time() + (86400 * 30),
+                true
+            );
         }
-        $description = "Survey started";
-        if (!empty($referral_code)) {
-            $description .= " - Referral Code: " . $referral_code;
-        }
-        if (!empty($referral_source)) {
-            $description .= " - Source: " . $referral_source;
-        }
-        $this->log_activity($tracking_id, $submission_id, 'started', $description);
+        $this->log_activity($tracking_id, $submission_id, 'started', 'Survey started');
 
         if ($persist_cookies && !empty($referral_code) && !headers_sent()) {
-            setcookie('rts_referral_code', $referral_code, time() + (86400 * 30), '/', '', false, true);
+            rts_set_cookie('rts_referral_code', $referral_code, time() + (86400 * 30), true);
         }
         if ($persist_cookies && !empty($referral_source) && !headers_sent()) {
-            setcookie('rts_referral_source', $referral_source, time() + (86400 * 30), '/', '', false, true);
+            rts_set_cookie('rts_referral_source', $referral_source, time() + (86400 * 30), true);
         }
 
         return array('tracking_id' => $tracking_id, 'submission_id' => $submission_id);
@@ -336,8 +319,6 @@ class RTS_Tracking
             );
             
             if ($updated !== false) {
-                error_log('RTS: Updated existing answer for question: ' . $question_id . ' - Old: ' . $old_answer_label . ' -> New: ' . $answer_data['label']);
-                
                 // For email, also update the tracking table
                 if ($question_id === 'email' || strpos($question_id, 'email') !== false) {
                     $wpdb->update(
@@ -345,7 +326,6 @@ class RTS_Tracking
                         array('email' => $answer_data['value']),
                         array('id' => $tracking_id)
                     );
-                    error_log('RTS: Updated email in tracking table: ' . $answer_data['value']);
                 }
                 
                 // UPDATE ANALYTICS: Remove old vote, add new vote
@@ -356,7 +336,7 @@ class RTS_Tracking
                     $tracking_id,
                     $submission_id,
                     'answer_updated',
-                    "Question: {$question_id}, Step: {$step}, Old: {$old_answer_label}, New: {$answer_data['label']}"
+                    "Question updated at step {$step}"
                 );
                 
                 return true;
@@ -389,8 +369,6 @@ class RTS_Tracking
             return false;
         }
 
-        error_log('RTS: Inserted new answer for question: ' . $question_id . ' - Value: ' . $answer_data['label']);
-
         // For email, also update the tracking table
         if ($question_id === 'email' || strpos($question_id, 'email') !== false) {
             $wpdb->update(
@@ -398,7 +376,6 @@ class RTS_Tracking
                 array('email' => $answer_data['value']),
                 array('id' => $tracking_id)
             );
-            error_log('RTS: Updated email in tracking table: ' . $answer_data['value']);
         }
 
         // Update tracking record
@@ -455,7 +432,6 @@ class RTS_Tracking
                 )
             );
             
-            error_log('RTS: Analytics - Decremented vote for: ' . $old_answer);
         }
 
         // Increment new vote
@@ -510,7 +486,6 @@ class RTS_Tracking
             );
         }
 
-        error_log('RTS: Analytics updated for question: ' . $question_id . ' - Old: ' . $old_answer . ' -> New: ' . $new_answer);
     }
 
     public function set_session_id($session_id)
@@ -549,7 +524,6 @@ class RTS_Tracking
             );
             if ($email_answer) {
                 $email = sanitize_email($email_answer);
-                error_log('RTS: Email found in answers table: ' . $email);
             }
         }
 
@@ -557,7 +531,6 @@ class RTS_Tracking
             // 2. Try from the tracking table (if already stored)
             if (!empty($tracking->email)) {
                 $email = sanitize_email($tracking->email);
-                error_log('RTS: Email found in tracking table: ' . $email);
             }
         }
 
@@ -576,7 +549,6 @@ class RTS_Tracking
             );
             if ($email_answer && is_email($email_answer)) {
                 $email = sanitize_email($email_answer);
-                error_log('RTS: Email found via pattern matching: ' . $email);
             }
         }
 
@@ -597,9 +569,6 @@ class RTS_Tracking
 
         if (!empty($email)) {
             $update_data['email'] = sanitize_email($email);
-            error_log('RTS: Setting final email: ' . $email);
-        } else {
-            error_log('RTS: No email found for tracking ID: ' . $tracking_id);
         }
 
         $updated = $wpdb->update(
@@ -620,10 +589,9 @@ class RTS_Tracking
             array('tracking_id' => $tracking_id)
         );
 
-        $this->log_activity($tracking_id, $tracking->submission_id, 'completed', "Survey completed with email: " . ($email ?: 'No email provided'));
+        $this->log_activity($tracking_id, $tracking->submission_id, 'completed', 'Survey completed');
         $this->cleanup_duplicate_tracking($tracking->session_id, $tracking->form_id, $tracking_id);
         
-        error_log('RTS: Survey completed successfully for ID: ' . $tracking_id . ' with email: ' . ($email ?: 'No email'));
         do_action('rts_survey_completed', $tracking_id);
         
         return true;
@@ -741,7 +709,6 @@ class RTS_Tracking
             return false;
         }
         
-        error_log('RTS: Step updated successfully for ID: ' . $tracking_id . ' to step: ' . $step);
         return true;
     }
 
@@ -808,7 +775,20 @@ class RTS_Tracking
 
         $table = $wpdb->prefix . 'rts_activity_logs';
         
-        if ($wpdb->get_var("SHOW TABLES LIKE '$table'") != $table) {
+        $inserted = $wpdb->insert(
+            $table,
+            array(
+                'tracking_id' => $tracking_id,
+                'submission_id' => $submission_id,
+                'action' => $action,
+                'description' => $description,
+                'created_at' => current_time('mysql')
+            )
+        );
+
+        // The table is created on activation. Retain a failure-only self-heal
+        // for restored databases without issuing SHOW TABLES for every event.
+        if (false === $inserted) {
             $wpdb->query(
                 "CREATE TABLE IF NOT EXISTS $table (
                     id bigint(20) NOT NULL AUTO_INCREMENT,
@@ -823,18 +803,17 @@ class RTS_Tracking
                     KEY action (action)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"
             );
+            $wpdb->insert(
+                $table,
+                array(
+                    'tracking_id' => $tracking_id,
+                    'submission_id' => $submission_id,
+                    'action' => $action,
+                    'description' => $description,
+                    'created_at' => current_time('mysql')
+                )
+            );
         }
-
-        $wpdb->insert(
-            $table,
-            array(
-                'tracking_id' => $tracking_id,
-                'submission_id' => $submission_id,
-                'action' => $action,
-                'description' => $description,
-                'created_at' => current_time('mysql')
-            )
-        );
     }
 
     public function is_form_excluded($form_id) {
@@ -973,6 +952,21 @@ class RTS_Tracking
             return $geo_data;
         }
 
+        $cache_key = 'rts_geo_' . substr(hash('sha256', $ip), 0, 32);
+        $cached = get_transient($cache_key);
+        if (is_array($cached)) {
+            return array_merge($geo_data, $cached);
+        }
+
+        // Cloudflare already supplies the country at the edge, avoiding a
+        // blocking third-party HTTP request for the common live-site path.
+        $cloudflare_country = sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_IPCOUNTRY'] ?? ''));
+        if ($cloudflare_country && 'XX' !== $cloudflare_country) {
+            $geo_data['country'] = $cloudflare_country;
+            set_transient($cache_key, $geo_data, DAY_IN_SECONDS);
+            return $geo_data;
+        }
+
         try {
             $url = 'http://ip-api.com/json/' . $ip . '?fields=status,country,city,regionName,lat,lon';
             $response = wp_remote_get($url, array(
@@ -998,6 +992,7 @@ class RTS_Tracking
             }
         }
 
+        set_transient($cache_key, $geo_data, DAY_IN_SECONDS);
         return $geo_data;
     }
 

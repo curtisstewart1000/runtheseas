@@ -6,11 +6,42 @@ if (!defined('ABSPATH')) {
 
 trait RTS_Survey_Ajax
 {
+    /** Require the unguessable token paired with a public tracking ID. */
+    private function require_tracking_access($tracking_id, $form_id = 0)
+    {
+        $access_token = sanitize_text_field(wp_unslash($_POST['tracking_token'] ?? ''));
+        if (!rts_verify_tracking_access($tracking_id, $access_token)) {
+            wp_send_json_error('Invalid or expired survey access token.', 403);
+        }
+        if ($form_id) {
+            global $wpdb;
+            $stored_form_id = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT form_id FROM {$wpdb->prefix}rts_survey_tracking WHERE id = %d",
+                absint($tracking_id)
+            ));
+            if ($stored_form_id !== absint($form_id)) {
+                wp_send_json_error('Survey form does not match this tracking session.', 403);
+            }
+        }
+
+        return $access_token;
+    }
+
     public function ajax_track_survey_start()
     {
         check_ajax_referer('rts_nonce', 'nonce');
+        if (!rts_consume_rate_limit('survey_start', 30, 15 * MINUTE_IN_SECONDS)) {
+            wp_send_json_error('Too many survey starts. Please try again later.', 429);
+        }
 
         $form_id = intval($_POST['form_id']);
+
+        $all_settings = get_option('rts_survey_settings', array());
+        $form_settings = $all_settings[$form_id] ?? array('active' => 0, 'excluded' => 0);
+        $form_status = $this->get_survey_status($form_id, $form_settings);
+        if ('active' !== ($form_status['class'] ?? 'inactive')) {
+            wp_send_json_error('This survey is not currently accepting responses.', 403);
+        }
 
         if ($this->is_form_excluded($form_id)) {
             error_log('RTS: Form ' . $form_id . ' is excluded from tracking');
@@ -27,8 +58,8 @@ trait RTS_Survey_Ajax
             if ($cookie_consent && !headers_sent()) {
                 // This preference is readable by the consent prompt so it is
                 // not HttpOnly; tracking identifiers remain HttpOnly.
-                setcookie('rts_survey_cookie_consent', 'accepted', time() + (86400 * 30), '/', '', false, false);
-                setcookie('rts_session_id', $session_id, time() + (86400 * 30), '/', '', false, true);
+                rts_set_cookie('rts_survey_cookie_consent', 'accepted', time() + (86400 * 30), false);
+                rts_set_cookie('rts_session_id', $session_id, time() + (86400 * 30), true);
             }
             $this->tracking->set_session_id($session_id);
         }
@@ -38,7 +69,10 @@ trait RTS_Survey_Ajax
         if ($result) {
             wp_send_json_success(array(
                 'tracking_id' => $result['tracking_id'],
-                'submission_id' => $result['submission_id']
+                'tracking_token' => rts_create_tracking_access_token(
+                    $result['tracking_id'],
+                    $result['submission_id']
+                ),
             ));
         } else {
             wp_send_json_error('Failed to start tracking');
@@ -71,11 +105,10 @@ trait RTS_Survey_Ajax
         $question_type = sanitize_text_field($_POST['question_type'] ?? 'text');
         $step = intval($_POST['step'] ?? 0);
 
-        // Get or create tracking ID
+        // Tracking is created only by ajax_track_survey_start. Every later
+        // mutation must prove ownership of that specific tracking record.
         $tracking_id = intval($_POST['tracking_id'] ?? 0);
-        if (!$tracking_id) {
-            $tracking_id = $this->tracking->start_tracking($form_id);
-        }
+        $this->require_tracking_access($tracking_id, $form_id);
 
         // Special handling for email - store full value
         if ($question_id === 'email') {
@@ -101,6 +134,7 @@ trait RTS_Survey_Ajax
 
         $tracking_id = intval($_POST['tracking_id']);
         $step = intval($_POST['step'] ?? 0);
+        $this->require_tracking_access($tracking_id);
 
         if ($tracking_id) {
             $this->tracking->track_abandonment($tracking_id, $step);
@@ -118,8 +152,7 @@ trait RTS_Survey_Ajax
         $email = sanitize_email($_POST['email'] ?? '');
         $final_step = intval($_POST['final_step'] ?? 0);
         $skip_registration = isset($_POST['skip_registration']) ? intval($_POST['skip_registration']) : 0;
-
-        error_log('RTS Complete Survey - Tracking ID: ' . $tracking_id . ', Email: ' . $email . ', Skip Registration: ' . $skip_registration);
+        $access_token = $this->require_tracking_access($tracking_id, $form_id);
 
         if ($tracking_id) {
             $result = $this->tracking->complete_survey($tracking_id, $email, $final_step);
@@ -138,20 +171,18 @@ trait RTS_Survey_Ajax
 
                 // If user chose to skip registration, store that preference
                 if ($skip_registration) {
-                    update_option('rts_survey_skipped_registration_' . $tracking_id, array(
+                    set_transient('rts_survey_skipped_registration_' . $tracking_id, array(
                         'tracking_id' => $tracking_id,
                         'email' => $email,
                         'timestamp' => current_time('mysql')
-                    ));
-                    error_log('RTS: User skipped registration for tracking ID: ' . $tracking_id);
+                    ), WEEK_IN_SECONDS);
                 }
 
                 wp_send_json_success(array(
                     'completed' => true,
                     'tracking_id' => $tracking_id,
-                    'email' => $email,
                     'skip_registration' => $skip_registration,
-                    'redirect_url' => rts_get_captains_update_page_url($tracking_id, $form_id),
+                    'redirect_url' => rts_get_captains_update_page_url($tracking_id, $form_id, $access_token),
                 ));
             } else {
                 wp_send_json_error('Failed to complete survey');
@@ -163,17 +194,13 @@ trait RTS_Survey_Ajax
 
     public function ajax_track_step_change()
     {
-        // Log the incoming request for debugging
-        error_log('RTS Step Change Request: ' . print_r($_POST, true));
-
         check_ajax_referer('rts_nonce', 'nonce');
 
         $tracking_id = intval($_POST['tracking_id']);
         $step = intval($_POST['step']);
         $old_step = intval($_POST['old_step'] ?? 0);
         $button_action = sanitize_text_field($_POST['button_action'] ?? 'unknown');
-
-        error_log("RTS Step Change - ID: $tracking_id, Step: $step, Old: $old_step, Button Action: $button_action");
+        $this->require_tracking_access($tracking_id);
 
         if ($tracking_id) {
             $result = $this->tracking->track_step_change($tracking_id, $step, $old_step, $button_action);
@@ -323,6 +350,7 @@ trait RTS_Survey_Ajax
             wp_send_json_error('Invalid tracking ID');
             return;
         }
+        $this->require_tracking_access($tracking_id, $form_id);
 
         // Update the tracking record with accurate location
         global $wpdb;
@@ -354,7 +382,7 @@ trait RTS_Survey_Ajax
                     $tracking_id,
                     $submission_id,
                     'location_update',
-                    "Accurate location: lat={$lat}, lng={$lng}, accuracy={$accuracy}m"
+                    'Browser location updated'
                 );
             }
 
@@ -383,6 +411,7 @@ trait RTS_Survey_Ajax
             wp_send_json_error('Invalid tracking ID');
             return;
         }
+        $this->require_tracking_access($tracking_id, $form_id);
 
         // Get IP geolocation data
         $geo_data = $this->tracking->get_geo_data();
@@ -416,7 +445,7 @@ trait RTS_Survey_Ajax
                     $tracking_id,
                     $submission_id,
                     'location_fallback',
-                    "IP Fallback: country={$geo_data['country']}, city={$geo_data['city']}"
+                    'IP fallback location updated'
                 );
             }
 
@@ -451,12 +480,17 @@ trait RTS_Survey_Ajax
     public function ajax_track_share()
     {
         check_ajax_referer('rts_nonce', 'nonce');
+        if (!is_user_logged_in()) {
+            wp_send_json_error('Authentication required.', 401);
+        }
 
         $share_action = sanitize_text_field($_POST['share_action'] ?? '');
         $platform = sanitize_text_field($_POST['platform'] ?? '');
-        $referral_code = sanitize_text_field($_POST['referral_code'] ?? '');
-
-        error_log("RTS: Share tracked - Action: $share_action, Platform: $platform, Referral: $referral_code");
+        $participant = $this->registration->get_participant_for_user(wp_get_current_user());
+        if (!$participant) {
+            wp_send_json_error('Participant not found.', 404);
+        }
+        $referral_code = sanitize_text_field((string) $participant->referral_code);
 
         // Log to database
         global $wpdb;
@@ -466,7 +500,7 @@ trait RTS_Survey_Ajax
                 'tracking_id' => 0,
                 'submission_id' => 'share_' . uniqid(),
                 'action' => 'share_' . $share_action,
-                'description' => "Share: $share_action on $platform - Ref: $referral_code",
+                'description' => "Share: $share_action on $platform",
                 'created_at' => current_time('mysql')
             )
         );
@@ -487,12 +521,15 @@ trait RTS_Survey_Ajax
         check_ajax_referer('rts_nonce', 'nonce');
 
         $tracking_id = intval($_POST['tracking_id']);
-        $changes = isset($_POST['changes']) ? $_POST['changes'] : array();
+        $changes = isset($_POST['changes'])
+            ? map_deep(wp_unslash($_POST['changes']), 'sanitize_text_field')
+            : array();
 
         if (!$tracking_id || empty($changes)) {
             wp_send_json_error('Invalid data');
             return;
         }
+        $this->require_tracking_access($tracking_id);
 
         global $wpdb;
         $submission_id = $wpdb->get_var(
@@ -508,19 +545,8 @@ trait RTS_Survey_Ajax
                 $tracking_id,
                 $submission_id,
                 'review_changes',
-                "Review changes: " . json_encode($changes)
+                'Survey review changes recorded'
             );
-
-            // Store changes in a meta table or option for later analysis
-            $review_data = array(
-                'tracking_id' => $tracking_id,
-                'submission_id' => $submission_id,
-                'changes' => $changes,
-                'timestamp' => current_time('mysql')
-            );
-
-            // Store in a new table or as an option
-            add_option('rts_review_changes_' . $tracking_id, $review_data);
 
             wp_send_json_success('Review changes logged');
         }

@@ -1,7 +1,71 @@
-import * as THREE from './vendor/three/build/three.module.min.js';
-import { GLTFLoader } from './vendor/three/examples/jsm/loaders/GLTFLoader.js';
+// r162 is the final Three.js release whose WebGLRenderer supports both
+// WebGL2 and WebGL1. This keeps GLB trophies interactive on browsers and
+// remote sessions where Chromium cannot expose a WebGL2 context.
+import * as THREE from './vendor/three-r162/build/three.module.min.js';
+import { GLTFLoader } from './vendor/three-r162/examples/jsm/loaders/GLTFLoader.js';
 
 const modelPromises = new Map();
+let webGLAvailable;
+
+function supportsWebGL() {
+    if (typeof webGLAvailable === 'boolean') return webGLAvailable;
+
+    try {
+        const canvas = document.createElement('canvas');
+        // Prefer WebGL2 but accept WebGL1 through the compatibility renderer.
+        // Forcing a high-performance GPU can fail on remote sessions, guest
+        // profiles, and systems where Chromium cannot bind the discrete GPU.
+        const contextOptions = {
+            alpha: true,
+            antialias: true,
+            stencil: true,
+            failIfMajorPerformanceCaveat: false,
+            powerPreference: 'default'
+        };
+        const context = canvas.getContext('webgl2', contextOptions)
+            || canvas.getContext('webgl', contextOptions)
+            || canvas.getContext('experimental-webgl', contextOptions);
+        webGLAvailable = Boolean(context);
+        if (context) {
+            const loseContext = context.getExtension('WEBGL_lose_context');
+            if (loseContext) loseContext.loseContext();
+        }
+    } catch (error) {
+        webGLAvailable = false;
+    }
+
+    return webGLAvailable;
+}
+
+function showStaticTrophyFallback(root, stage, viewButtons, rotateButtons) {
+    root.classList.add('has-static-trophy-fallback');
+    if (stage) stage.classList.add('has-model-error');
+
+    const fallback = stage && stage.querySelector('.rts-single-trophy__model-fallback');
+    const fallbackUrl = fallback && (fallback.currentSrc || fallback.src);
+    root.querySelectorAll('[data-rts-thumbnail-model]').forEach((element) => {
+        element.classList.add('has-model-error');
+        if (!fallbackUrl) return;
+
+        const image = document.createElement('img');
+        image.src = fallbackUrl;
+        image.alt = '';
+        image.loading = 'lazy';
+        image.decoding = 'async';
+        element.replaceChildren(image);
+    });
+
+    rotateButtons.forEach((button) => {
+        button.disabled = true;
+        button.hidden = true;
+    });
+    viewButtons.forEach((button) => {
+        button.disabled = true;
+    });
+
+    const interaction = root.querySelector('.rts-single-trophy__interaction');
+    if (interaction) interaction.textContent = '3D view is unavailable in this browser.';
+}
 
 function normaliseAngle(angle) {
     const value = Number(angle) || 0;
@@ -306,7 +370,8 @@ async function createThreeViewer(element, root, options) {
         antialias: true,
         alpha: true,
         stencil: true,
-        powerPreference: 'high-performance'
+        failIfMajorPerformanceCaveat: false,
+        powerPreference: 'default'
     });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, options.interactive ? 2 : 1.5));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -965,6 +1030,12 @@ async function initTrophyViewer(root) {
         if (controller) controller.setAngle(currentAngle);
     };
 
+    if (mainElement && !supportsWebGL()) {
+        showStaticTrophyFallback(root, stage, viewButtons, rotateButtons);
+        initShare(root);
+        return;
+    }
+
     if (mainElement) {
         try {
             controller = await createThreeViewer(mainElement, root, { interactive: true, angle: currentAngle });
@@ -974,8 +1045,10 @@ async function initTrophyViewer(root) {
                 selectNearestView(currentAngle);
             });
         } catch (error) {
-            stage.classList.add('has-model-error');
-            console.error('Unable to load the Three.js trophy model.', error);
+            showStaticTrophyFallback(root, stage, viewButtons, rotateButtons);
+            console.warn('The 3D trophy is unavailable; displaying its static artwork instead.', error);
+            initShare(root);
+            return;
         }
     }
     root.querySelectorAll('[data-rts-thumbnail-model]').forEach((element) => {

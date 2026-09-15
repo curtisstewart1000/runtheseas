@@ -465,7 +465,9 @@ trait RTS_Database_Schema
             PRIMARY KEY (id),
             KEY participant_id (participant_id),
             KEY trophy_type (trophy_type),
-            KEY trophy_key (trophy_key)
+            KEY trophy_key (trophy_key),
+            KEY participant_trophy (participant_id, trophy_key),
+            KEY participant_display_date (participant_id, is_displayed, earned_date)
         ) $charset_collate;";
 
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');

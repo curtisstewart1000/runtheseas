@@ -1495,7 +1495,6 @@ class RTS_Admin {
      */
     public function ajax_save_settings() {
         // Debug: Log incoming request
-        error_log('RTS: AJAX Save Settings Request: ' . print_r($_POST, true));
         
         // Verify nonce
         if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'rts_admin_nonce')) {
@@ -1537,7 +1536,6 @@ class RTS_Admin {
             'timezone' => wp_timezone_string()
         );
         
-        error_log('RTS: Settings to save: ' . print_r($settings, true));
         
         // Save settings
         $updated = update_option('rts_survey_settings', $settings);
@@ -1571,7 +1569,6 @@ class RTS_Admin {
      */
     public function ajax_toggle_survey() {
         // Debug: Log incoming request
-        error_log('RTS: Admin AJAX Toggle Survey Request: ' . print_r($_POST, true));
         
         // Verify nonce
         if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'rts_admin_nonce')) {
@@ -1614,7 +1611,6 @@ class RTS_Admin {
         // Update active status (keep excluded status as is)
         $settings[$form_id]['active'] = $active;
         
-        error_log('RTS: Admin Settings after update: ' . print_r($settings, true));
         
         // Save settings
         $updated = update_option('rts_survey_settings', $settings);
@@ -1688,10 +1684,7 @@ class RTS_Admin {
     }
     
     public function enqueue_admin_assets($hook) {
-        error_log('RTS: Admin assets enqueued on hook: ' . $hook);
-        
         if (strpos($hook, 'rts-survey') === false) {
-            error_log('RTS: Skipping admin assets - not on RTS page');
             return;
         }
         
@@ -1703,7 +1696,6 @@ class RTS_Admin {
             'nonce' => wp_create_nonce('rts_admin_nonce')
         ));
         
-        error_log('RTS: Admin assets enqueued successfully');
     }
     
     public function render_surveys_page() {
@@ -2280,7 +2272,6 @@ class RTS_Admin {
      */
     public function ajax_toggle_excluded() {
         // Debug: Log incoming request
-        error_log('RTS: AJAX Toggle Excluded Request: ' . print_r($_POST, true));
         
         // Verify nonce
         if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'rts_admin_nonce')) {
@@ -2308,7 +2299,6 @@ class RTS_Admin {
         
         // Get current settings
         $settings = get_option('rts_survey_settings', array());
-        error_log('RTS: Current settings before update: ' . print_r($settings, true));
         
         // Initialize if not exists
         if (!isset($settings[$form_id])) {
@@ -2324,7 +2314,6 @@ class RTS_Admin {
         // Update excluded status - MAKE SURE THIS IS SET
         $settings[$form_id]['excluded'] = $excluded;
         
-        error_log('RTS: Settings after update: ' . print_r($settings, true));
         
         // Save settings
         $updated = update_option('rts_survey_settings', $settings);
@@ -2914,5 +2903,7 @@ class RTS_Admin {
   
 }
 
-// Initialize admin
-new RTS_Admin();
+// Admin hooks and handlers are unnecessary during ordinary front-end views.
+if (is_admin()) {
+    new RTS_Admin();
+}

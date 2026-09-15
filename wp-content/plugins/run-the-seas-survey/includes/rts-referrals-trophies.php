@@ -24,8 +24,8 @@ function rts_add_referral_columns()
             error_log("RTS: Added column $column to $table_name");
         }
     }
+
 }
-add_action('init', 'rts_add_referral_columns');
 
 function rts_add_referrer_id_column()
 {
@@ -43,7 +43,6 @@ function rts_add_referrer_id_column()
         error_log('RTS: Added referrer_participant_id column to tracking table');
     }
 }
-add_action('init', 'rts_add_referrer_id_column');
 
 function rts_referral_stats_shortcode($atts)
 {
@@ -80,7 +79,6 @@ function rts_add_unique_referral_constraint()
         error_log('RTS: Added unique constraint to referrals table');
     }
 }
-add_action('init', 'rts_add_unique_referral_constraint');
 
 ////////
 /**
@@ -94,7 +92,6 @@ function rts_init_trophy_system()
     if (!isset($rts_trophy_instance) && class_exists('RTS_Trophy')) {
         try {
             $rts_trophy_instance = new RTS_Trophy();
-            error_log('RTS: Trophy system initialized successfully');
         } catch (Exception $e) {
             error_log('RTS: Failed to initialize trophy system: ' . $e->getMessage());
         }
@@ -121,7 +118,6 @@ function rts_register_trophy_shortcodes()
         add_shortcode('rts_trophy_case_marathon_1', array($rts_trophy_instance, 'render_marathon_one_trophy_case'));
         add_shortcode('rts_single_trophy', array($rts_trophy_instance, 'render_single_trophy'));
         add_shortcode('rts_trophy_room', array($rts_trophy_instance, 'render_trophy_room'));
-        error_log('RTS: Trophy shortcodes registered via instance');
         return;
     }
 
@@ -134,7 +130,6 @@ function rts_register_trophy_shortcodes()
             add_shortcode('rts_trophy_case_marathon_1', array($trophy, 'render_marathon_one_trophy_case'));
             add_shortcode('rts_single_trophy', array($trophy, 'render_single_trophy'));
             add_shortcode('rts_trophy_room', array($trophy, 'render_trophy_room'));
-            error_log('RTS: Trophy shortcodes registered via fallback');
         } catch (Exception $e) {
             error_log('RTS: Failed to register trophy shortcodes: ' . $e->getMessage());
         }
@@ -142,26 +137,6 @@ function rts_register_trophy_shortcodes()
 }
 // Register shortcodes on init with high priority
 add_action('init', 'rts_register_trophy_shortcodes', 1);
-
-/**
- * Debug function to check if shortcodes are registered
- */
-function rts_debug_shortcodes()
-{
-    global $shortcode_tags;
-    $trophy_shortcodes = array();
-    foreach ($shortcode_tags as $tag => $callback) {
-        if (strpos($tag, 'rts_trophy') !== false || strpos($tag, 'trophy') !== false) {
-            $trophy_shortcodes[] = $tag;
-        }
-    }
-    if (!empty($trophy_shortcodes)) {
-        error_log('RTS: Registered trophy shortcodes: ' . implode(', ', $trophy_shortcodes));
-    } else {
-        error_log('RTS: No trophy shortcodes found!');
-    }
-}
-add_action('init', 'rts_debug_shortcodes', 20);
 
 /**
  * Ensure trophy table has all required columns
@@ -197,8 +172,60 @@ function rts_ensure_trophy_table()
             error_log("RTS: Added column $column to $table_name");
         }
     }
+
+    $indexes_to_add = array(
+        'participant_trophy' => "ALTER TABLE $table_name ADD INDEX participant_trophy (participant_id, trophy_key)",
+        'participant_display_date' => "ALTER TABLE $table_name ADD INDEX participant_display_date (participant_id, is_displayed, earned_date)",
+    );
+    foreach ($indexes_to_add as $index => $sql) {
+        $index_exists = $wpdb->get_var($wpdb->prepare(
+            "SHOW INDEX FROM $table_name WHERE Key_name = %s",
+            $index
+        ));
+        if (!$index_exists) {
+            $wpdb->query($sql);
+        }
+    }
 }
-add_action('init', 'rts_ensure_trophy_table');
+
+/**
+ * Apply legacy referral/trophy schema changes once per schema version.
+ *
+ * These checks previously ran on every front-end and administration request,
+ * including a duplicate-cleanup DELETE against the referrals table.
+ */
+function rts_maybe_upgrade_referral_trophy_schema()
+{
+    $schema_version = '1.1';
+    if (get_option('rts_referral_trophy_schema_version') === $schema_version) {
+        return;
+    }
+
+    $lock_option = 'rts_referral_trophy_schema_lock';
+    $lock_time = absint(get_option($lock_option));
+    if ($lock_time && (time() - $lock_time) < 10 * MINUTE_IN_SECONDS) {
+        return;
+    }
+    if ($lock_time) {
+        delete_option($lock_option);
+    }
+    if (!add_option($lock_option, time(), '', 'no')) {
+        return;
+    }
+
+    try {
+        rts_add_referral_columns();
+        rts_add_referrer_id_column();
+        rts_add_unique_referral_constraint();
+        rts_ensure_trophy_table();
+
+        update_option('rts_referral_trophy_schema_version', $schema_version, false);
+    } finally {
+        delete_option($lock_option);
+    }
+}
+add_action('plugins_loaded', 'rts_maybe_upgrade_referral_trophy_schema', 30);
+
 add_filter('rts_trophy_definitions', function ($trophies) {
     $upload_dir = wp_get_upload_dir();
     $trophy_image_base_url = trailingslashit($upload_dir['baseurl']) . '2026/07/';

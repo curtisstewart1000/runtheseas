@@ -19,12 +19,8 @@ class RTS_Registration_Page {
         add_shortcode('rts_registration_form', array($this, 'render_registration_form'));        
         
         // AJAX handlers
-        add_action('wp_ajax_rts_check_registration_status', array($this, 'ajax_check_registration_status'));
-        add_action('wp_ajax_nopriv_rts_check_registration_status', array($this, 'ajax_check_registration_status'));
-        
         // Share tracking AJAX
         add_action('wp_ajax_rts_track_share', array($this, 'ajax_track_share'));
-        add_action('wp_ajax_nopriv_rts_track_share', array($this, 'ajax_track_share'));
         
         // Add action to enqueue scripts
         add_action('wp_enqueue_scripts', array($this, 'enqueue_registration_scripts'));
@@ -73,60 +69,26 @@ class RTS_Registration_Page {
     public function render_registration_form($atts) {
         // Get parameters from URL
         $tracking_id = isset($_GET['tracking_id']) ? intval($_GET['tracking_id']) : 0;
+        $tracking_token = isset($_GET['tracking_token'])
+            ? sanitize_text_field(wp_unslash($_GET['tracking_token']))
+            : sanitize_text_field(wp_unslash($_COOKIE['rts_tracking_token'] ?? ''));
         $form_id = isset($_GET['form_id']) ? intval($_GET['form_id']) : 0;
         $email = isset($_GET['email']) ? sanitize_email($_GET['email']) : '';
         $from_survey = isset($_GET['from_survey']) ? intval($_GET['from_survey']) : 0;
 
-        error_log('RTS: Registration page accessed - GET: ' . print_r($_GET, true));
-        error_log('RTS: Initial tracking_id from GET: ' . $tracking_id);
-        
-        // --- CHECK FOR TRACKING_ID FROM COOKIE ---
-        if (
-            !$tracking_id &&
-            isset($_COOKIE['rts_survey_cookie_consent']) &&
-            $_COOKIE['rts_survey_cookie_consent'] === 'accepted' &&
-            isset($_COOKIE['rts_tracking_id'])
-        ) {
-
+        // Essential access cookies permit the post-survey registration flow
+        // even when optional analytics-cookie consent was declined.
+        if (!$tracking_id && isset($_COOKIE['rts_tracking_id'])) {
             $tracking_id = absint($_COOKIE['rts_tracking_id']);
+        }
+        if ($tracking_id && '' === $tracking_token) {
+            $tracking_token = rts_get_tracking_access_token_from_cookie($tracking_id);
+        }
 
-            error_log('RTS: Found tracking_id from cookie: ' . $tracking_id);
-
-            $redirect_args = array(
-                'tracking_id' => $tracking_id,
-                'from_survey' => 1,
-            );
-
-            // Add form_id if available.
-            if ($form_id > 0) {
-                $redirect_args['form_id'] = $form_id;
-            }
-
-            // Add email if available.
-            if (!empty($email)) {
-                $redirect_args['email'] = $email;
-            }
-
-            $redirect_url = add_query_arg(
-                $redirect_args,
-                home_url('/register/')
-            );
-
-            error_log('RTS: Redirecting to: ' . $redirect_url);
-
-            // JavaScript redirect.
-            // IMPORTANT: Use wp_json_encode(), NOT esc_url().
-            echo '<script>';
-            echo 'window.location.replace(' . wp_json_encode($redirect_url) . ');';
-            echo '</script>';
-
-            echo '<noscript>';
-            echo '<meta http-equiv="refresh" content="0;url=' . esc_attr($redirect_url) . '">';
-            echo '</noscript>';
-
-            echo '<p style="text-align:center;">Redirecting...</p>';
-
-            exit;
+        // A numeric tracking ID alone never grants access to survey answers.
+        if ($tracking_id && !rts_verify_tracking_access($tracking_id, $tracking_token)) {
+            $tracking_id = 0;
+            $tracking_token = '';
         }
 
         // --- GET TRACKING RECORD AND CHECK STATUS ---
@@ -147,8 +109,6 @@ class RTS_Registration_Page {
             );
             
             if ($tracking_record) {
-                error_log('RTS: Found tracking record: ID ' . $tracking_id . ', status: ' . $tracking_record->completion_status);
-                
                 // Check if survey is completed
                 $survey_completed = ($tracking_record->completion_status === 'completed');
                 
@@ -168,34 +128,27 @@ class RTS_Registration_Page {
                             $registered_id
                         )
                     );
-                    error_log('RTS: Survey already registered to participant: ' . $registered_id);
                 }
                 
                 // Get email from tracking
-                if (empty($email) && !empty($tracking_record->email)) {
+                if (!empty($tracking_record->email)) {
                     $email = $tracking_record->email;
-                    error_log('RTS: Email from tracking: ' . $email);
                 }
                 
                 // Get form_id from tracking
                 if (empty($form_id) && !empty($tracking_record->form_id)) {
                     $form_id = $tracking_record->form_id;
-                    error_log('RTS: Form ID from tracking: ' . $form_id);
                 }
-            } else {
-                error_log('RTS: No tracking record found for ID: ' . $tracking_id);
             }
         }
 
         // --- IF ALREADY REGISTERED, SHOW MESSAGE ---
         if ($already_registered && $participant_data) {
-            error_log('RTS: User already registered, showing already registered message');
             return $this->render_already_registered($participant_data);
         }
 
         // --- IF SURVEY NOT COMPLETED, SHOW WARNING ---
         if ($tracking_id > 0 && !$survey_completed) {
-            error_log('RTS: Survey not completed, showing warning');
             ob_start();
             ?>
             <div class="rts-registration-wrapper" style="max-width: 800px; margin: 0 auto; padding: 20px;">
@@ -216,7 +169,6 @@ class RTS_Registration_Page {
 
         // --- IF NO TRACKING_ID, SHOW MESSAGE ---
         if (!$tracking_id) {
-            error_log('RTS: No tracking_id found, showing message');
             ob_start();
             ?>
             <div class="rts-registration-wrapper" style="max-width: 800px; margin: 0 auto; padding: 20px;">
@@ -267,17 +219,13 @@ class RTS_Registration_Page {
         if ($email && $this->registration) {
             $existing = $this->registration->get_participant_by_email($email);
             if ($existing) {
-                // Link the survey to this existing participant
-                if ($tracking_id > 0) {
-                    global $wpdb;
-                    $wpdb->update(
-                        $wpdb->prefix . 'rts_participants',
-                        array('survey_tracking_id' => $tracking_id),
-                        array('id' => $existing->id)
-                    );
-                    error_log('RTS: Linked survey ' . $tracking_id . ' to existing participant ' . $existing->id);
-                }
-                return $this->render_already_registered($existing);
+                $login_url = rts_get_member_login_url(get_permalink());
+                return '<div class="rts-registration-wrapper" style="max-width:800px;margin:0 auto;padding:20px;">'
+                    . '<div style="background:#fff3cd;border:2px solid #ffc107;border-radius:12px;padding:30px 25px;text-align:center;">'
+                    . '<h2 style="color:#856404;margin:0 0 10px;">Account Already Exists</h2>'
+                    . '<p style="color:#856404;">Log in to link this completed survey to your existing account.</p>'
+                    . '<a href="' . esc_url($login_url) . '" style="display:inline-block;padding:12px 40px;background:#1a7efb;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Log In</a>'
+                    . '</div></div>';
             }
         }
         
@@ -285,12 +233,10 @@ class RTS_Registration_Page {
         $survey_data = array();
         if ($tracking_id && $form_id) {
             $survey_data = $this->get_survey_data($tracking_id, $form_id);
-            error_log('RTS: Survey data: ' . print_r($survey_data, true));
         }
         
         if (empty($email) && isset($survey_data['email'])) {
             $email = $survey_data['email'];
-            error_log('RTS: Email from survey data: ' . $email);
         }
         
         // --- GET SITE ICON URL FOR JAVASCRIPT ---
@@ -298,8 +244,6 @@ class RTS_Registration_Page {
         if (!$site_icon_url) {
             $site_icon_url = '';
         }
-        
-        error_log('RTS: Rendering registration form with tracking_id: ' . $tracking_id . ', form_id: ' . $form_id . ', email: ' . $email);
         
         // --- START OUTPUT ---
         ob_start();
@@ -340,6 +284,7 @@ class RTS_Registration_Page {
                     
                     <!-- Hidden fields -->
                     <input type="hidden" name="tracking_id" id="rts_tracking_id_field" value="<?php echo esc_attr($tracking_id); ?>">
+                    <input type="hidden" name="tracking_token" value="<?php echo esc_attr($tracking_token); ?>">
                     <input type="hidden" name="form_id" value="<?php echo esc_attr($form_id); ?>">
                     <input type="hidden" name="from_survey" value="<?php echo esc_attr($from_survey); ?>">
                     <input type="hidden" name="action" value="rts_save_registration">
@@ -1088,12 +1033,17 @@ class RTS_Registration_Page {
      */
     public function ajax_track_share() {
         check_ajax_referer('rts_nonce', 'nonce');
+        if (!is_user_logged_in()) {
+            wp_send_json_error('Authentication required.', 401);
+        }
         
         $share_action = sanitize_text_field($_POST['share_action'] ?? '');
         $platform = sanitize_text_field($_POST['platform'] ?? '');
-        $referral_code = sanitize_text_field($_POST['referral_code'] ?? '');
-        
-        error_log("RTS: Share tracked - Action: $share_action, Platform: $platform, Referral: $referral_code");
+        $participant = $this->registration->get_participant_for_user(wp_get_current_user());
+        if (!$participant) {
+            wp_send_json_error('Participant not found.', 404);
+        }
+        $referral_code = sanitize_text_field((string) $participant->referral_code);
         
         // Log to database if tracking is available
         if ($this->tracking) {
@@ -1108,7 +1058,7 @@ class RTS_Registration_Page {
                         'tracking_id' => 0,
                         'submission_id' => 'share_' . uniqid(),
                         'action' => 'share_' . $share_action,
-                        'description' => "Share: $share_action on $platform - Ref: $referral_code",
+                        'description' => "Share: $share_action on $platform",
                         'created_at' => current_time('mysql')
                     )
                 );
@@ -1116,7 +1066,6 @@ class RTS_Registration_Page {
             
             // Also log to participants if we have the referral code
             if (!empty($referral_code)) {
-                $participant = $this->registration->get_participant_by_referral_code($referral_code);
                 if ($participant) {
                     // Update referral count or track share event
                     $this->registration->log_timeline(

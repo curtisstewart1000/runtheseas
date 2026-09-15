@@ -365,7 +365,6 @@ function rts_ensure_certificates_page()
         'post_type'    => 'page',
     ));
 }
-add_action('init', 'rts_ensure_certificates_page', 30);
 
 /** Route a member's empty BuddyPress profile URL to the Elementor Suite page. */
 function rts_redirect_buddypress_member_home_to_captains_suite()
@@ -427,7 +426,27 @@ function rts_ensure_member_profile_page()
         }
     }
 }
-add_action('init', 'rts_ensure_member_profile_page', 30);
+
+/** Ensure the plugin-owned account pages once, not during every request. */
+function rts_maybe_ensure_member_pages()
+{
+    $page_version = '1.0';
+    if (get_option('rts_member_pages_version') === $page_version) {
+        return;
+    }
+    if (!rts_acquire_upgrade_lock('member_pages')) {
+        return;
+    }
+
+    try {
+        rts_ensure_certificates_page();
+        rts_ensure_member_profile_page();
+        update_option('rts_member_pages_version', $page_version, false);
+    } finally {
+        rts_release_upgrade_lock('member_pages');
+    }
+}
+add_action('plugins_loaded', 'rts_maybe_ensure_member_pages', 31);
 
 function rts_get_member_profile_url()
 {
@@ -467,4 +486,3 @@ function rts_render_customer_account_links()
         . '<a href="' . esc_url(rts_get_member_qr_url()) . '">My QR Code</a>'
         . '</nav>';
 }
-add_action('init', 'rts_upgrade_participant_benefit_columns', 1);

@@ -145,7 +145,7 @@ function rts_ensure_admin_dashboard_page()
 add_action('init', 'rts_ensure_admin_dashboard_page', 20);
 
 /** Return the post-survey Captain's Update page with its survey context. */
-function rts_get_captains_update_page_url($tracking_id = 0, $form_id = 0)
+function rts_get_captains_update_page_url($tracking_id = 0, $form_id = 0, $tracking_token = '')
 {
     $page_id = absint(get_option('rts_captains_update_page_id'));
     $url = $page_id && get_post_status($page_id)
@@ -154,6 +154,7 @@ function rts_get_captains_update_page_url($tracking_id = 0, $form_id = 0)
 
     return add_query_arg(array_filter(array(
         'tracking_id' => absint($tracking_id),
+        'tracking_token' => sanitize_text_field((string) $tracking_token),
         'form_id'     => absint($form_id),
         'from_survey' => 1,
     )), $url);
@@ -192,9 +193,15 @@ function rts_captains_update_shortcode()
 {
     $tracking_id = isset($_GET['tracking_id']) ? absint($_GET['tracking_id']) : 0;
     $form_id = isset($_GET['form_id']) ? absint($_GET['form_id']) : 0;
+    $tracking_token = isset($_GET['tracking_token'])
+        ? sanitize_text_field(wp_unslash($_GET['tracking_token']))
+        : sanitize_text_field(wp_unslash($_COOKIE['rts_tracking_token'] ?? ''));
+    if ($tracking_id && '' === $tracking_token) {
+        $tracking_token = rts_get_tracking_access_token_from_cookie($tracking_id);
+    }
     $is_completed = false;
 
-    if ($tracking_id) {
+    if ($tracking_id && rts_verify_tracking_access($tracking_id, $tracking_token)) {
         global $wpdb;
         $tracking = $wpdb->get_row($wpdb->prepare(
             "SELECT form_id, completion_status FROM {$wpdb->prefix}rts_survey_tracking WHERE id = %d",
@@ -236,6 +243,7 @@ function rts_captains_update_shortcode()
     $cover_id = $video_id . '-cover';
     $registration_url = add_query_arg(array_filter(array(
         'tracking_id' => $tracking_id,
+        'tracking_token' => $tracking_token,
         'form_id'     => $form_id,
         'from_survey' => 1,
     )), rts_get_member_page_url('register'));

@@ -5,6 +5,7 @@ jQuery(document).ready(function ($) {
 
   var rtsTracking = {
     tracking_id: 0,
+    tracking_token: "",
     form_id: 0,
     current_step: 1,
     total_steps: 0,
@@ -225,9 +226,10 @@ jQuery(document).ready(function ($) {
     $("#rts-step-jump-overlay").remove();
   }
 
-  function buildRegistrationUrl(trackingId, formId) {
+  function buildRegistrationUrl(trackingId, formId, trackingToken) {
     var queryParams = {
       tracking_id: trackingId,
+      tracking_token: trackingToken || rtsTracking.tracking_token,
       form_id: formId,
       from_survey: 1,
     };
@@ -871,6 +873,7 @@ jQuery(document).ready(function ($) {
           data: {
             action: "rts_update_location",
             tracking_id: trackingId,
+            tracking_token: rtsTracking.tracking_token,
             form_id: formId,
             lat: locationData.lat,
             lng: locationData.lng,
@@ -911,6 +914,7 @@ jQuery(document).ready(function ($) {
       data: {
         action: "rts_geo_ip_fallback",
         tracking_id: trackingId,
+        tracking_token: rtsTracking.tracking_token,
         form_id: formId,
         nonce: rts_ajax.nonce,
       },
@@ -1078,6 +1082,7 @@ jQuery(document).ready(function ($) {
         action: "rts_track_question_answer",
         form_id: formId,
         tracking_id: rtsTracking.tracking_id,
+        tracking_token: rtsTracking.tracking_token,
         question_id: fieldName,
         answer: answerValue,
         question_label: questionLabel,
@@ -1137,6 +1142,7 @@ jQuery(document).ready(function ($) {
         action: "rts_track_question_answer",
         form_id: formId,
         tracking_id: rtsTracking.tracking_id,
+        tracking_token: rtsTracking.tracking_token,
         question_id: fieldName,
         answer: trimmedEmail,
         question_label: questionLabel,
@@ -1163,7 +1169,7 @@ jQuery(document).ready(function ($) {
     var $form = $(".fluentform");
 
     if (!$form.length) {
-      console.log("⏳ Waiting for Fluent Form to load...");
+      //console.log("⏳ Waiting for Fluent Form to load...");
       setTimeout(function () {
         checkSurveyStatus();
       }, 500);
@@ -1180,7 +1186,7 @@ jQuery(document).ready(function ($) {
     }
 
     rtsTracking.form_id = formId;
-    console.log("✅ Fluent Form found! Form ID:", formId);
+    //console.log("✅ Fluent Form found! Form ID:", formId);
 
     $form.hide();
 
@@ -1319,6 +1325,7 @@ jQuery(document).ready(function ($) {
       success: function (response) {
         if (response.success) {
           rtsTracking.tracking_id = response.data.tracking_id;
+          rtsTracking.tracking_token = response.data.tracking_token || "";
           rtsTracking.tracking_started = true;
           rtsTracking.form_started = true;
 
@@ -1710,6 +1717,7 @@ jQuery(document).ready(function ($) {
       data: {
         action: "rts_complete_survey",
         tracking_id: trackingId,
+        tracking_token: rtsTracking.tracking_token,
         form_id: formId,
         final_step: rtsTracking.current_step || 1,
         nonce: rts_ajax.nonce,
@@ -1728,7 +1736,11 @@ jQuery(document).ready(function ($) {
 
           window.location.assign(
             response.data.redirect_url ||
-              buildRegistrationUrl(response.data.tracking_id || trackingId, formId)
+              buildRegistrationUrl(
+                response.data.tracking_id || trackingId,
+                formId,
+                rtsTracking.tracking_token,
+              )
           );
         } else {
           alert("Error submitting survey. Please try again.");
@@ -2226,6 +2238,7 @@ jQuery(document).ready(function ($) {
       var formData = new FormData();
       formData.append("action", "rts_track_abandonment");
       formData.append("tracking_id", rtsTracking.tracking_id);
+      formData.append("tracking_token", rtsTracking.tracking_token);
       formData.append("step", rtsTracking.current_step);
       formData.append("nonce", rts_ajax.nonce);
 
@@ -2238,6 +2251,7 @@ jQuery(document).ready(function ($) {
           data: {
             action: "rts_track_abandonment",
             tracking_id: rtsTracking.tracking_id,
+            tracking_token: rtsTracking.tracking_token,
             step: rtsTracking.current_step,
             nonce: rts_ajax.nonce,
           },

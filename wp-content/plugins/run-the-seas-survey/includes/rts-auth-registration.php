@@ -71,7 +71,7 @@ function rts_sync_linked_participant_email($user_id, $reset_verification = false
         return new WP_Error('rts_user_not_found', __('Member account not found.', 'run-the-seas'));
     }
 
-    $registration = new RTS_Registration();
+    $registration = RunTheSeasPlugin::get_instance()->registration;
     $participant = $registration->get_participant_by_user_id($user_id);
     if (!$participant) {
         return new WP_Error('rts_participant_not_found', __('No linked Run The Seas participant was found.', 'run-the-seas'));
@@ -149,19 +149,20 @@ function rts_sync_participant_after_wp_profile_update($user_id, $old_user_data)
 }
 add_action('profile_update', 'rts_sync_participant_after_wp_profile_update', 10, 2);
 
-/** Repair a pre-existing email mismatch for the signed-in member. */
-function rts_reconcile_current_member_email()
+/** Repair a pre-existing email mismatch when the member signs in. */
+function rts_reconcile_current_member_email($user_login = '', $user = null)
 {
-    if (!is_user_logged_in()) {
+    $user_id = $user instanceof WP_User ? (int) $user->ID : get_current_user_id();
+    if (!$user_id) {
         return;
     }
 
-    $result = rts_sync_linked_participant_email(get_current_user_id(), false, false);
+    $result = rts_sync_linked_participant_email($user_id, false, false);
     if (is_wp_error($result) && !in_array($result->get_error_code(), array('rts_participant_not_found', 'rts_user_not_found'), true)) {
-        error_log('RTS: Existing WordPress/participant email mismatch could not be repaired for user ' . get_current_user_id() . ': ' . $result->get_error_message());
+        error_log('RTS: Existing WordPress/participant email mismatch could not be repaired for user ' . $user_id . ': ' . $result->get_error_message());
     }
 }
-add_action('init', 'rts_reconcile_current_member_email', 2);
+add_action('wp_login', 'rts_reconcile_current_member_email', 10, 2);
 
 /**
  * Enforce authentication and role access for protected front-end pages.
@@ -542,22 +543,13 @@ function rts_format_trophy_miles($miles, $trophy_key = '')
 // In run-the-seas-survey.php, add this check
 function rts_check_pending_processing()
 {
-    // Only run on admin_init if we have pending registrations
-    if (is_admin()) {
-        global $wpdb;
-        $pending_count = $wpdb->get_var(
-            "SELECT COUNT(*) FROM {$wpdb->options} 
-             WHERE option_name LIKE 'rts_pending_registration_%'"
-        );
-
-        if ($pending_count > 0) {
-            // Check if already processing
-            if (!get_transient('rts_pending_registration_lock')) {
-                // Process pending registrations
-                rts_process_pending_registrations();
-            } else {
-                error_log('RTS: Pending registration processing already running, skipping admin_init trigger');
-            }
+    // The registration endpoint sets this short-lived hint. Avoid scanning the
+    // options table during every administration request when no work exists.
+    if (is_admin() && get_transient('rts_pending_registration_hint')) {
+        if (!get_transient('rts_pending_registration_lock')) {
+            rts_process_pending_registrations();
+        } else {
+            error_log('RTS: Pending registration processing already running, skipping admin_init trigger');
         }
     }
 }
@@ -895,7 +887,26 @@ function rts_add_survey_tracking_id_column()
         error_log('RTS: Added survey_tracking_id column to participants table');
     }
 }
-add_action('init', 'rts_add_survey_tracking_id_column');
+
+/** Apply the legacy participant/tracking relationship column once. */
+function rts_maybe_upgrade_survey_tracking_link_schema()
+{
+    $schema_version = '1.0';
+    if (get_option('rts_survey_tracking_link_schema_version') === $schema_version) {
+        return;
+    }
+    if (!rts_acquire_upgrade_lock('survey_tracking_link_schema')) {
+        return;
+    }
+
+    try {
+        rts_add_survey_tracking_id_column();
+        update_option('rts_survey_tracking_link_schema_version', $schema_version, false);
+    } finally {
+        rts_release_upgrade_lock('survey_tracking_link_schema');
+    }
+}
+add_action('plugins_loaded', 'rts_maybe_upgrade_survey_tracking_link_schema', 30);
 
 /**
  * Update survey tracking ID when survey is completed

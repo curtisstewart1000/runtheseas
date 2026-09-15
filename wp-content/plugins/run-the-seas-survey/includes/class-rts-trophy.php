@@ -16,7 +16,10 @@ class RTS_Trophy {
     public function __construct() {
         global $wpdb;
         $this->db = $wpdb;
-        $this->registration = new RTS_Registration();
+        $plugin = function_exists('rts_init') ? rts_init() : null;
+        $this->registration = $plugin && $plugin->registration instanceof RTS_Registration
+            ? $plugin->registration
+            : new RTS_Registration();
         
         // Define trophy levels with their requirements
         $this->trophy_definitions = array(
@@ -159,7 +162,6 @@ class RTS_Trophy {
         
         // AJAX handlers
         add_action('wp_ajax_rts_get_trophy_data', array($this, 'ajax_get_trophy_data'));
-        add_action('wp_ajax_nopriv_rts_get_trophy_data', array($this, 'ajax_get_trophy_data'));
     }    
    
     /**
@@ -987,6 +989,7 @@ class RTS_Trophy {
      * AJAX: Get trophy data for frontend
      */
     public function ajax_get_trophy_data() {
+        check_ajax_referer('rts_nonce', 'nonce');
         if (!is_user_logged_in()) {
             wp_send_json_error('Please login to view trophies');
         }
@@ -999,6 +1002,7 @@ class RTS_Trophy {
         }
         
         $definitions = $this->get_all_trophy_definitions();
+        $trophies = $this->get_user_trophies($participant->id);
         
         // Get latest trophy (if any)
         $latest_trophy = null;

@@ -17,6 +17,7 @@ class RunTheSeasPlugin
     public $registration_page = null;
     public $registration = null;
     public $participant_operations = null;
+    public $race_manager = null;
 
     public static function get_instance()
     {
@@ -36,6 +37,7 @@ class RunTheSeasPlugin
         $this->tracking = new RTS_Tracking($wpdb);
 
         $this->init_registration_system();
+        $this->race_manager = new RTS_Race_Manager($this->registration);
         $this->participant_operations = new RTS_Participant_Operations($this->registration);
 
         $this->init_hooks();
@@ -49,19 +51,20 @@ class RunTheSeasPlugin
         // Initialize registration page
         $this->registration_page = new RTS_Registration_Page($this->tracking, $this->registration);
 
-        error_log('RTS: Registration system initialized');
     }
 
     private function load_dependencies()
     {
         require_once RTS_PLUGIN_PATH . 'includes/class-rts-tracking.php';
-        require_once RTS_PLUGIN_PATH . 'includes/class-rts-admin.php';
-        require_once RTS_PLUGIN_PATH . 'includes/class-rts-form-sync.php';
+        if (is_admin()) {
+            require_once RTS_PLUGIN_PATH . 'includes/class-rts-admin.php';
+            require_once RTS_PLUGIN_PATH . 'includes/class-rts-form-sync.php';
+            require_once RTS_PLUGIN_PATH . 'includes/class-rts-analytics.php';
+        }
 
         require_once RTS_PLUGIN_PATH . 'includes/class-rts-registration.php';
         require_once RTS_PLUGIN_PATH . 'includes/class-rts-registration-page.php';
         require_once RTS_PLUGIN_PATH . 'includes/class-rts-participant-operations.php';
-        require_once RTS_PLUGIN_PATH . 'includes/class-rts-analytics.php';
         require_once RTS_PLUGIN_PATH . 'includes/class-rts-race-manager.php';
         require_once RTS_PLUGIN_PATH . 'includes/class-rts-trophy.php';
         require_once RTS_PLUGIN_PATH . 'includes/class-rts-wpum-qr.php';
@@ -98,10 +101,8 @@ class RunTheSeasPlugin
         add_action('wp_ajax_rts_archive_analytics', array($this, 'ajax_archive_analytics'));
 
         add_action('wp_ajax_rts_check_registration_status', array($this, 'ajax_check_registration_status'));
-        add_action('wp_ajax_nopriv_rts_check_registration_status', array($this, 'ajax_check_registration_status'));
 
         add_action('wp_ajax_rts_track_share', array($this, 'ajax_track_share'));
-        add_action('wp_ajax_nopriv_rts_track_share', array($this, 'ajax_track_share'));
 
         add_action('wp_ajax_rts_track_review_changes', array($this, 'ajax_track_review_changes'));
         add_action('wp_ajax_nopriv_rts_track_review_changes', array($this, 'ajax_track_review_changes'));

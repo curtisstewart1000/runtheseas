@@ -28,7 +28,6 @@ class RTS_Form_Sync {
         // AJAX handler for manual sync
         add_action('wp_ajax_rts_sync_form_fields', array($this, 'ajax_sync_form_fields'));
         
-        error_log('RTS: Form Sync initialized with delayed sync');
     }
     
     /**
@@ -708,4 +707,6 @@ class RTS_Form_Sync {
 }
 
 // Initialize the form sync
-new RTS_Form_Sync();
+if (is_admin()) {
+    new RTS_Form_Sync();
+}

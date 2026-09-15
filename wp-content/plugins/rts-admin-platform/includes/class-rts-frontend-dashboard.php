@@ -289,6 +289,21 @@ class RTSAP_Frontend_Dashboard {
 		);
 	}
 
+	/** Load the large admin renderers only for the staff dashboard itself. */
+	private static function load_admin_renderers() {
+		foreach ( array(
+			'class-rts-admin-menu.php',
+			'class-rts-admin-menu-2.php',
+			'class-rts-admin-menu-3.php',
+			'class-rts-admin-menu-4.php',
+			'class-rts-admin-menu-5.php',
+			'class-rts-admin-menu-6.php',
+			'class-rts-admin-menu-7.php',
+		) as $file ) {
+			require_once RTSAP_PLUGIN_DIR . 'includes/' . $file;
+		}
+	}
+
 	public static function render_fluent_form() {
 		$form_id = isset( $_GET['form_id'] ) ? absint( $_GET['form_id'] ) : 0;
 		$route = isset( $_GET['route'] ) ? sanitize_key( wp_unslash( $_GET['route'] ) ) : 'editor';
@@ -348,6 +363,7 @@ class RTSAP_Frontend_Dashboard {
 			return '<p class="rtsap-access-message">' . esc_html__( 'You do not have permission to view this dashboard.', 'run-the-seas' ) . '</p>';
 		}
 
+		self::load_admin_renderers();
 		$allowed = self::allowed_pages();
 		$screen = self::current_screen( $allowed );
 		$user = wp_get_current_user();
