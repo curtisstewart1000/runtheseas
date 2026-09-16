@@ -197,7 +197,8 @@
 .rts-captains-update__cover,
 .rts-captains-update__video {
     display: block;
-    width: 100%;
+    width: 60%;
+    margin: auto;
     height: auto;
     border: 2px solid #d69b23;
     border-radius: 14px;
