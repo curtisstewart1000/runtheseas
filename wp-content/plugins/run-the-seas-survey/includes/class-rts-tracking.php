@@ -1006,6 +1006,12 @@ class RTS_Tracking
             'deleted_analytics' => 0,
             'deleted_activity' => 0
         );
+
+        $form_id = filter_var($form_id, FILTER_VALIDATE_INT, array('options' => array('min_range' => 1)));
+        if (false === $form_id) {
+            $results['message'] = 'Invalid form ID';
+            return $results;
+        }
         
         // Get form name for logging
         $form_name = $this->get_form_name($form_id);
@@ -1056,7 +1062,10 @@ class RTS_Tracking
         );
         
         $results['deleted_tracking'] = $wpdb->query(
-            "DELETE FROM {$wpdb->prefix}rts_survey_tracking WHERE form_id = $form_id"
+            $wpdb->prepare(
+                "DELETE FROM {$wpdb->prefix}rts_survey_tracking WHERE form_id = %d",
+                $form_id
+            )
         );
         
         $results['deleted_analytics'] = $wpdb->query(

@@ -571,8 +571,9 @@ function rts_restrict_user_login($user, $username, $password = null)
         return $user;
     }
 
-    // Skip for administrators
-    if (user_can($user, 'manage_options')) {
+    // Administration accounts are not survey participants and do not need
+    // survey registration or its age confirmation to sign in.
+    if (user_can($user, 'manage_options') || rts_is_run_the_seas_admin($user)) {
         return $user;
     }
 
@@ -617,8 +618,8 @@ function rts_redirect_non_verified_users()
         return;
     }
 
-    // Skip for administrators
-    if (current_user_can('manage_options')) {
+    // Apply participant prerequisites only to member accounts.
+    if (current_user_can('manage_options') || rts_is_run_the_seas_admin()) {
         return;
     }
 
