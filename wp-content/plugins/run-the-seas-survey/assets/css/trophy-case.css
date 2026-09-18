@@ -178,6 +178,8 @@
 
 .rts-trophy-case__plaque b { display: block; font-size: clamp(.72rem, 1vw, 1rem); font-weight: 500; }
 .rts-trophy-case__plaque small { display: block; overflow: hidden; margin-top: 5px; font: 600 clamp(.58rem, .7vw, .75rem)/1 Arial, sans-serif; letter-spacing: .03em; text-overflow: ellipsis; text-transform: none; white-space: nowrap; }
+.rts-trophy-case__founding-details .rts-trophy-case__founding-number { overflow: visible; white-space: normal; }
+.rts-trophy-case__founding-number span { display: block; }
 
 .rts-trophy-case__glass {
 	position: absolute;
@@ -699,7 +701,7 @@
 }
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--founding-runner { left: 7%; }
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--5k { left: 18%; }
-.rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--10k { left: 29%; }
+.rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--10k { left: 29%; top: 15%; }
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--15k { left: 40%; }
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--20k { left: 51%; }
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--25k { left: 62%; }
@@ -865,7 +867,7 @@
 
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__plaque {
 	right: 2%;
-	bottom: 1.5%;
+	bottom: 3.5%;
 	left: 2%;
 	display: flex;
 	height: 25%;
@@ -1598,9 +1600,21 @@
 	line-height: 1.06;
 }
 
+.rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__plaque > .rts-trophy-case__member-name {
+	position: absolute;
+	top: 40%;
+	right: 8%;
+	left: 8%;
+	margin: 0;
+	color: #f7c65e;
+	font: 600 clamp(6px, .58vw, 10px)/1 Arial, sans-serif !important;
+	text-align: center;
+	text-shadow: 0 1px 1px #000;
+}
+
 .rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__day-stats {
     position: absolute;
-    top: 54%;
+    top: 63%;
     right: 10%;
     bottom: auto;
     left: 10%;
@@ -1614,7 +1628,7 @@
 .rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__day-stats em {
 	box-sizing: border-box;
 	justify-content: flex-end;
-	gap: .12em;
+	gap: .30em;
 }
 
 .rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__day-stats em:first-child {
@@ -1651,12 +1665,17 @@
 
 .rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--21k .rts-trophy-case__day-stats, 
 .rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--42k .rts-trophy-case__day-stats {
-    top: 47%;
+    top: 53%;
     right: 19%;
     bottom: auto;
     left: 24%;
     font-size: var(--rts-m1-day-label-large-size);
 }
+
+.rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item.is-earned .rts-trophy-case__day-stats { top: 63%; }
+.rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item.is-earned .rts-trophy-case__founding-details { top: 56%; }
+.rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item.is-earned.rts-trophy-case__item--21k .rts-trophy-case__day-stats,
+.rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item.is-earned.rts-trophy-case__item--42k .rts-trophy-case__day-stats { top: 60%; }
 
 /* Center the two lower trophy names independently of the uploaded artwork's
  * transparent side padding and any custom plaque-stat offsets. */
@@ -1835,6 +1854,11 @@
 		right: 15%;
 		left: 19%;
 	}
+
+	.rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork.has-responsive-background-artwork .rts-trophy-case__item.is-earned .rts-trophy-case__day-stats { top: 62%; }
+	.rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork.has-responsive-background-artwork .rts-trophy-case__item.is-earned .rts-trophy-case__founding-details { top: 55%; }
+	.rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork.has-responsive-background-artwork .rts-trophy-case__item.is-earned.rts-trophy-case__item--21k .rts-trophy-case__day-stats,
+	.rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork.has-responsive-background-artwork .rts-trophy-case__item.is-earned.rts-trophy-case__item--42k .rts-trophy-case__day-stats { top: 60%; }
 
 	.rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork.has-responsive-background-artwork .rts-trophy-case__item--founding-runner,
 	.rts-trophy-case.rts-trophy-case--marathon-one.has-background-artwork.has-responsive-background-artwork .rts-trophy-case__item--5k { top: 11.1%; }

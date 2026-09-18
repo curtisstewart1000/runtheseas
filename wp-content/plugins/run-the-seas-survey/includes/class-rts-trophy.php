@@ -1303,7 +1303,11 @@ class RTS_Trophy {
         $joined_date = !empty($participant->registration_date)
             ? date_i18n(get_option('date_format'), strtotime($participant->registration_date))
             : '';
-        $founding_number = '#' . str_pad((string) absint($participant->id), 3, '0', STR_PAD_LEFT);
+        // Locked Marathon 1 milestones keep counting calendar days from
+        // registration. Earned milestones use their recorded unlock date.
+        $journey_start = $this->get_trophy_journey_start_date($participant);
+        $locked_total_days = $this->days_between_trophy_dates($journey_start, current_time('Y-m-d'));
+        $founding_number = str_pad((string) absint($participant->id), 3, '0', STR_PAD_LEFT);
 
         // Marathon 1 unlocks at 42K while retaining its 42.2K display label.
         // Marathon 2 uses the next clean 42K block.
@@ -1448,12 +1452,18 @@ class RTS_Trophy {
                             $item_classes .= ' is-major';
                         }
                         $single_url = add_query_arg('trophy', $key, home_url('/single-trophy/'));
-                        $record = $trophy_records[$key] ?? null;
-                        $day_stats = $record
-                            ? $this->get_trophy_record_day_stats($participant, $trophy_records, $key)
-                            : array('split_days' => 0, 'total_days' => 0);
-                        $split_days = absint($day_stats['split_days']);
-                        $total_days = absint($day_stats['total_days']);
+                        $split_days = 0;
+                        $total_days = 0;
+                        if ($is_marathon_one && !$is_founding) {
+                            $record = $trophy_records[$key] ?? null;
+                            $day_stats = $earned && $record
+                                ? $this->get_trophy_record_day_stats($participant, $trophy_records, $key)
+                                : array('split_days' => 0, 'total_days' => 0);
+                            $split_days = absint($day_stats['split_days']);
+                            $total_days = $earned
+                                ? absint($day_stats['total_days'])
+                                : $locked_total_days;
+                        }
                     ?>
                         <article class="<?php echo esc_attr($item_classes); ?>">
                             <?php if ($earned) : ?>
@@ -1477,19 +1487,28 @@ class RTS_Trophy {
                             <span class="rts-trophy-case__plaque">
                                 <?php if ($is_marathon_one) : ?>
                                     <b><?php foreach ($label_lines as $label_line) : ?><span><?php echo esc_html($label_line); ?></span><?php endforeach; ?></b>
+                                    <?php if ($earned) : ?>
+                                        <p class="rts-trophy-case__member-name"><?php echo esc_html($trophy_display_name); ?></p>
+                                    <?php else : ?> 
+                                        <p class="rts-trophy-case__member-name"><?php esc_html_e('Your Name Here', 'run-the-seas'); ?></p>   
+                                    <?php endif; ?>
                                     <?php if ($is_founding) : ?>
                                         <span class="rts-trophy-case__founding-details">
                                             <?php if ($earned && $joined_date) : ?><em><?php echo esc_html(sprintf(__('Joined %s', 'run-the-seas'), $joined_date)); ?></em><?php endif; ?>
-                                            <small><?php echo $earned ? esc_html(sprintf(__('Founding Member %s', 'run-the-seas'), $founding_number)) : esc_html__('Complete registration and verification', 'run-the-seas'); ?></small>
+                                            <?php if ($earned) : ?>
+                                                <small class="rts-trophy-case__founding-number" style="font-size: 10px;"><?php esc_html_e('Founding Runner #', 'run-the-seas'); ?><span><?php echo esc_html($founding_number); ?></span></small>
+                                            <?php else : ?>
+                                                <!-- <small><?php //esc_html_e('Complete registration and verification', 'run-the-seas'); ?></small> -->
+                                            <?php endif; ?>
                                         </span>
                                     <?php else : ?>
                                         <span class="rts-trophy-case__day-stats">
                                             <em><?php esc_html_e('Split Days', 'run-the-seas'); ?><i><?php echo $earned ? esc_html($split_days) : '&ndash;'; ?></i></em>
-                                            <em><?php esc_html_e('Total Days', 'run-the-seas'); ?><i><?php echo $earned ? esc_html($total_days) : '&ndash;'; ?></i></em>
+                                            <em><?php esc_html_e('Total Days', 'run-the-seas'); ?><i><?php echo esc_html($total_days); ?></i></em>
                                         </span>
                                     <?php endif; ?>
                                 <?php else : ?>
-                                    <small><?php echo $earned ? esc_html($trophy_display_name) : esc_html__('Your Name Here', 'run-the-seas'); ?></small>
+                                    <small class="rts-trophy-case__member-name"><?php echo $earned ? esc_html($trophy_display_name) : esc_html__('Your Name Here', 'run-the-seas'); ?></small>
                                 <?php endif; ?>
                             </span>
                             <footer class="rts-trophy-case__status">
