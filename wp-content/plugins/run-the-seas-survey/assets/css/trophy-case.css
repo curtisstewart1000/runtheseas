@@ -701,12 +701,13 @@
 }
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--founding-runner { left: 7%; }
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--5k { left: 18%; }
-.rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--10k { left: 29%; top: 15%; }
+.rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--10k { left: 29%; top: 15.5%; }
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--15k { left: 40%; }
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--20k { left: 51%; }
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--25k { left: 62%; }
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--30k { left: 73%; }
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--35k { left: 84%; }
+.rts-trophy-case__item--10k span.rts-trophy-case__plaque {bottom: 7% !important;}
 
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--21k,
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--42k {
