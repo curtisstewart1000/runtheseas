@@ -976,7 +976,7 @@ class RTS_Trophy {
                 . " (" . $requirement['kilometres'] . " km)\n";
         }
         $message .= "\n";
-        $message .= "View your trophy case: " . home_url('/trophy-case') . "\n\n";
+        $message .= "View your trophy case: " . home_url('/trophy-case-m1') . "\n\n";
         $message .= "Keep going, Captain! 🚀\n\n";
         $message .= "Best regards,\nThe Run The Seas Team";
         

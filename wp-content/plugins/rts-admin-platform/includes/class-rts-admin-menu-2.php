@@ -467,7 +467,7 @@ class RTS_Admin_Menu_2 {
 
 		echo '<div class="rtsap-profile-identity"><span class="rtsap-profile-avatar">' . esc_html( $initials ) . '</span><div><div class="rtsap-profile-name"><h2>' . esc_html( $name ) . '</h2><span class="rtsap-directory-badge ' . esc_attr( $status_class ) . '">' . esc_html( $status ) . '</span>';
 		if ( 'active' !== ( $p->account_status ?: 'active' ) ) { echo '<span class="rtsap-directory-badge is-suspended">' . esc_html( ucfirst( $p->account_status ) ) . '</span>'; }
-		echo '</div><p>' . esc_html( sprintf( 'Founding Runner #%s · Registered %s%s', $p->founding_runner_number ?: '—', $registered, $location ? ' · ' . $location : '' ) ) . '</p></div></div>';
+		echo '</div><p>' . esc_html( sprintf( 'Founding Runner %s · Registered %s%s', $p->founding_runner_number ?: '—', $registered, $location ? ' · ' . $location : '' ) ) . '</p></div></div>';
 
 		echo '<nav class="rtsap-tabs rtsap-profile-tabs" aria-label="' . esc_attr__( 'Participant profile sections', 'run-the-seas' ) . '">';
 		foreach ( $tabs as $key => $label ) {

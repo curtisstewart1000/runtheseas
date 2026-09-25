@@ -708,6 +708,7 @@
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--30k { left: 73%; }
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--35k { left: 84%; }
 .rts-trophy-case__item--10k span.rts-trophy-case__plaque {bottom: 7% !important;}
+.rts-trophy-case__item--10k.is-locked span.rts-trophy-case__plaque {bottom: 4% !important;}
 
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--21k,
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--42k {
@@ -721,6 +722,7 @@
 }
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--21k { left: 27%; }
 .rts-trophy-case--marathon-one.has-background-artwork .rts-trophy-case__item--42k { left: 48.5%; }
+
 
 /* Marathon 1 uploads are deliberately artwork-only. All wording is rendered
  * as responsive HTML so names, dates and progress stay current. */

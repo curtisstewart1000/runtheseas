@@ -8,7 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  */
 class RTSAP_Data_Mapper {
 
-	const MAP_VERSION = '1.3.0';
+	const MAP_VERSION = '1.3.1';
 	const SYNC_LOCK   = 'rtsap_data_mapper_lock';
 
 	public static function init() {
@@ -172,9 +172,9 @@ class RTSAP_Data_Mapper {
 		if ( ! self::exists( $participants ) ) { return; }
 
 		// Captain's Suite defines the Founding Runner ID as the participant's
-		// primary key, displayed with a hash and at least five digits (#00004).
+		// primary key, displayed with a hash and at least seven digits (#0000004).
 		$wpdb->query( "UPDATE $participants
-			SET founding_runner_number = CONCAT('#', IF(id < 100000, LPAD(id, 5, '0'), id))" );
+			SET founding_runner_number = CONCAT('#', IF(id < 10000000, LPAD(id, 7, '0'), id))" );
 
 		$wpdb->query( "UPDATE $participants SET
 			name = COALESCE(NULLIF(name,''), NULLIF(TRIM(CONCAT_WS(' ', first_name, last_name)),'')),

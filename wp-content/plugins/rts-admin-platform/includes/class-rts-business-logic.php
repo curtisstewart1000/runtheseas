@@ -118,7 +118,7 @@ class RTS_Business_Logic {
 		if ( ! $participant ) { return array( 'error' => 'INVALID_TOKEN' ); }
 		if ( $participant->email_verified ) { return array( 'error' => null, 'already_verified' => true, 'participant' => $participant ); }
 
-		$frn = '#' . str_pad( (string) absint( $participant->id ), 5, '0', STR_PAD_LEFT );
+		$frn = '#' . str_pad( (string) absint( $participant->id ), 7, '0', STR_PAD_LEFT );
 		$wpdb->update( $table, array(
 			'email_verified' => 1, 'verified_at' => current_time( 'mysql' ), 'founding_runner_number' => $frn,
 		), array( 'id' => $participant->id ) );
