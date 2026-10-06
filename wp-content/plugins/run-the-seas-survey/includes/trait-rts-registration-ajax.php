@@ -592,7 +592,7 @@ trait RTS_Registration_Ajax
         $message .= "<p style='font-size: 36px; font-weight: bold; color: #28a745; margin: 10px 0;'>$100</p>";
         $message .= "<p style='font-size: 14px; color: #666; margin: 5px 0;'>GOOD TOWARDS THE FIRST RUN THE SEAS™ CRUISE!</p>";
         $message .= "<hr style='border: 1px dashed #dee2e6; margin: 15px 0;'>";
-        $message .= "<p><strong>FOUNDING RUNNER:</strong> #" . sprintf("%06d", $participant->id) . "</p>";
+        $message .= "<p><strong>FOUNDING RUNNER:</strong> #" . rts_format_founding_runner_number($participant->id) . "</p>";
         $message .= "<p><strong>CERTIFICATE NUMBER:</strong> " . ($cabin_credit_number ?: 'RTS-' . date('Y') . '-' . strtoupper(substr(uniqid(), -6))) . "</p>";
         $message .= "<p><strong>DATE ISSUED:</strong> " . date('F j, Y') . "</p>";
         $message .= "</div>";

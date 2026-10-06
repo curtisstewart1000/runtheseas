@@ -456,7 +456,7 @@ class RTS_Trophy {
             $this->registration->log_timeline(
                 $participant_id,
                 'trophy_earned',
-                "Earned {$trophy['name']} with {$new_crew_count} verified referrals",
+                "Earned {$trophy['name']}",
                 array(
                     'trophy_id' => $trophy_id,
                     'trophy_key' => $trophy_key,
@@ -1307,7 +1307,7 @@ class RTS_Trophy {
         // registration. Earned milestones use their recorded unlock date.
         $journey_start = $this->get_trophy_journey_start_date($participant);
         $locked_total_days = $this->days_between_trophy_dates($journey_start, current_time('Y-m-d'));
-        $founding_number = str_pad((string) absint($participant->id), 3, '0', STR_PAD_LEFT);
+        $founding_number = rts_format_founding_runner_number($participant->id);
 
         // Marathon 1 unlocks at 42K while retaining its 42.2K display label.
         // Marathon 2 uses the next clean 42K block.
@@ -1487,11 +1487,11 @@ class RTS_Trophy {
                             <span class="rts-trophy-case__plaque">
                                 <?php if ($is_marathon_one) : ?>
                                     <b><?php foreach ($label_lines as $label_line) : ?><span><?php echo esc_html($label_line); ?></span><?php endforeach; ?></b>
-                                    <?php if ($earned) : ?>
+                                    <?php //if ($earned) : ?>
                                         <p class="rts-trophy-case__member-name"><?php echo esc_html($trophy_display_name); ?></p>
-                                    <?php else : ?> 
-                                        <p class="rts-trophy-case__member-name"><?php esc_html_e('Your Name Here', 'run-the-seas'); ?></p>   
-                                    <?php endif; ?>
+                                    <?php //else : ?> 
+                                        <!-- <p class="rts-trophy-case__member-name"><?php //esc_html_e('Your Name Here', 'run-the-seas'); ?></p>    -->
+                                    <?php //endif; ?>
                                     <?php if ($is_founding) : ?>
                                         <span class="rts-trophy-case__founding-details">
                                             <?php if ($earned && $joined_date) : ?><em><?php echo esc_html(sprintf(__('Joined %s', 'run-the-seas'), $joined_date)); ?></em><?php endif; ?>
@@ -1508,7 +1508,7 @@ class RTS_Trophy {
                                         </span>
                                     <?php endif; ?>
                                 <?php else : ?>
-                                    <small class="rts-trophy-case__member-name"><?php echo $earned ? esc_html($trophy_display_name) : esc_html__('Your Name Here', 'run-the-seas'); ?></small>
+                                    <small class="rts-trophy-case__member-name"><?php echo esc_html($trophy_display_name); ?><?php //echo $earned ? esc_html($trophy_display_name) : esc_html__('Your Name Here', 'run-the-seas'); ?></small>
                                 <?php endif; ?>
                             </span>
                             <footer class="rts-trophy-case__status">
@@ -1644,7 +1644,7 @@ class RTS_Trophy {
         $definitions = $this->get_all_trophy_definitions();
         $total_miles = intval($participant->total_captain_miles_earned);
         $email_verified = $participant->email_verified == 1;
-        $founding_member_number = str_pad($participant->id, 3, '0', STR_PAD_LEFT);
+        $founding_member_number = rts_format_founding_runner_number($participant->id);
         
         // Get earned trophy keys
         $earned_keys = array();
@@ -1879,7 +1879,7 @@ class RTS_Trophy {
 
         $member_name = trim((string) $participant->first_name . ' ' . (string) $participant->last_name);
         $member_name = $member_name ?: $user->display_name;
-        $founding_runner_number = str_pad((string) absint($participant->id), 3, '0', STR_PAD_LEFT);
+        $founding_runner_number = rts_format_founding_runner_number($participant->id);
         $verified_referrals = absint($participant->successful_referrals ?? 0);
         $single_day_stats = $this->get_trophy_record_day_stats($participant, $earned_records, $trophy_key);
         $earned_date = !empty($trophy_data->earned_date)
@@ -2075,7 +2075,7 @@ class RTS_Trophy {
         }
         $single_day_stats = $this->get_trophy_record_day_stats($participant, $single_trophy_records, $trophy_key);
         
-        $founding_member_number = str_pad($participant->id, 3, '0', STR_PAD_LEFT);
+        $founding_member_number = rts_format_founding_runner_number($participant->id);
         $crew_count = $this->get_crew_members_count($trophy_key, $trophy_def['miles_required']);
         
         ob_start();

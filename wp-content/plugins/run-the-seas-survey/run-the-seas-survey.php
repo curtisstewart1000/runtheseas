@@ -225,6 +225,20 @@ function rts_normalize_marathon_target($target)
     return 42200 === $target ? 42000 : $target;
 }
 
+/** Format a Founding Runner number as a minimum seven-digit identifier. */
+function rts_format_founding_runner_number($number)
+{
+    $number = ltrim(trim((string) $number), '#');
+    if ('' === $number || !ctype_digit($number)) {
+        return $number;
+    }
+
+    $number = ltrim($number, '0');
+    $number = '' === $number ? '0' : $number;
+
+    return str_pad($number, 7, '0', STR_PAD_LEFT);
+}
+
 // Microsoft 365 only permits authenticated mailboxes (or explicitly granted
 // aliases) in the From header. Keep every plugin email aligned with the
 // mailbox configured in SMTP instead of falling back to the WP admin email.

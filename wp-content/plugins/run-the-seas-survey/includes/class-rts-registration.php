@@ -1841,14 +1841,9 @@ class RTS_Registration
         $name = $name !== '' ? $name : __('Founding Runner', 'run-the-seas');
 
         $runner_number = trim((string) ($participant->founding_runner_number ?? ''));
-        if ($runner_number === '') {
-            $runner_number = str_pad((string) absint($participant->id ?? 0), 7, '0', STR_PAD_LEFT);
-        } else {
-            $runner_number = ltrim($runner_number, '#');
-            if (ctype_digit($runner_number)) {
-                $runner_number = str_pad($runner_number, 7, '0', STR_PAD_LEFT);
-            }
-        }
+        $runner_number = rts_format_founding_runner_number(
+            '' === $runner_number ? ($participant->id ?? 0) : $runner_number
+        );
         $runner_number = '#' . $runner_number;
 
         $certificate_number = trim((string) ($participant->certificate_number ?? ''));

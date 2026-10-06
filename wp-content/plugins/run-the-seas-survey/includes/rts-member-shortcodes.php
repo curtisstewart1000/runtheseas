@@ -838,7 +838,7 @@ function rts_founding_runner_shortcode($atts)
         return '';
     }
 
-    $number = str_pad((string) absint($participant->id), max(1, absint($atts['digits'])), '0', STR_PAD_LEFT);
+    $number = rts_format_founding_runner_number($participant->id);
     $output = '<div class="rts-founding-runner"><span class="rts-founding-runner__label">'
         . esc_html__('Founding Runner', 'run-the-seas') . '</span><strong class="rts-founding-runner__number">'
         . esc_html($number) . '</strong>';

@@ -1347,7 +1347,7 @@ class RTS_BuddyPress_QR
         }
 
         $referral_link = home_url('/survey?ref=' . $participant->referral_code);
-        $member_number = str_pad($participant->id, 6, '0', STR_PAD_LEFT);
+        $member_number = rts_format_founding_runner_number($participant->id);
 
         if (!extension_loaded('gd')) {
             error_log('RTS: GD extension not available for QR card generation');

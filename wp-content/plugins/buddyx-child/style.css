@@ -6,7 +6,7 @@ Author: wbcomdesigns,vapvarun
 Author URI: https://github.com/vapvarun/buddyx
 Description: BuddyX is an editorial-grade WordPress theme with a designer pattern library - 27 plug-and-play block patterns (hero, about, services, testimonials, pricing, FAQ, CTA, footer, query) composed from core blocks only. Self-hosted Inter and Newsreader fonts, fluid 8-step type scale, semantic color tokens (base / contrast / accent / surface) with WCAG AA contrast, Light and Editorial style variations, and full BuddyPress / WooCommerce / LearnDash compatibility. Hybrid FSE: classic templates plus theme.json design tokens editable in Site Editor. Lightweight, responsive, RTL- and translation-ready, accessibility-audited (WCAG 2.1 AA).
 Tags: one-column,two-columns,left-sidebar,right-sidebar,footer-widgets,blog,translation-ready,buddypress,custom-colors,featured-images,full-width-template,theme-options,e-commerce
-Version: 5.1.5.1785850279
+Version: 5.1.5.1785850280
 Updated: 2026-08-04 13:31:19
 
 */
@@ -92,3 +92,7 @@ rts-wordmark {
     .rts-medals { margin-top: 4vh; gap: 4vw; }
     .rts-medal { flex: 1 1 40%; max-width: 44%; }
   }
+
+small:before {
+  content: unset !important;
+}
