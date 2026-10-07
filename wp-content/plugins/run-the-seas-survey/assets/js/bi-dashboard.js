@@ -13,7 +13,7 @@ jQuery(document).ready(function($) {
             return;
         }
         
-        console.log('Loading BI Dashboard for form:', formId);
+        // console.log('Loading BI Dashboard for form:', formId);
         
         $('#rts-bi-no-form').hide();
         $('#rts-bi-dashboard-content').show();
@@ -38,10 +38,10 @@ jQuery(document).ready(function($) {
             dataType: 'json',
             timeout: 30000,
             success: function(response) {
-                console.log('BI Data response:', response);
-                console.log('Questions data:', response.data ? response.data.questions : 'No data');
-                console.log('Referrals data:', response.data ? response.data.referrals : 'No data');
-                console.log('Investor data:', response.data ? response.data.investor : 'No data');
+                // console.log('BI Data response:', response);
+                // console.log('Questions data:', response.data ? response.data.questions : 'No data');
+                // console.log('Referrals data:', response.data ? response.data.referrals : 'No data');
+                // console.log('Investor data:', response.data ? response.data.investor : 'No data');
                 
                 if (response.success) {
                     var data = response.data;
@@ -227,7 +227,7 @@ jQuery(document).ready(function($) {
     
     // Render Questions
     function renderQuestions(questions) {
-        console.log('Rendering questions:', questions);
+        // console.log('Rendering questions:', questions);
         
         if (!questions || questions.length === 0) {
             $('#rts-bi-questions-container').html('<div style="padding: 20px; text-align: center; color: #999;">No question data available. Complete a survey to see analytics.</div>');
@@ -267,7 +267,7 @@ jQuery(document).ready(function($) {
     
     // Render Referrals
     function renderReferrals(referrals) {
-        console.log('Rendering referrals:', referrals);
+        // console.log('Rendering referrals:', referrals);
         
         if (!referrals || !referrals.sources || referrals.sources.length === 0) {
             $('#rts-bi-referral-container').html('<div style="padding: 20px; text-align: center; color: #999;">No referral data available. Share referral links to see analytics.</div>');
@@ -315,7 +315,7 @@ jQuery(document).ready(function($) {
     
     // Render Investor Insights
     function renderInvestorInsights(investor) {
-        console.log('Rendering investor insights:', investor);
+        // console.log('Rendering investor insights:', investor);
         
         if (!investor) {
             $('#rts-bi-investor-insights').html('<div style="padding: 20px; text-align: center; color: rgba(255,255,255,0.7);">No investor data available</div>');

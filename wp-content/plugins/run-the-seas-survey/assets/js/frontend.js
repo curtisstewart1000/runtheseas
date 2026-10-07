@@ -836,7 +836,7 @@ jQuery(document).ready(function ($) {
 
     rtsReviewData.answers = answers;
 
-    console.log("📋 Total fields collected:", Object.keys(answers).length);
+    // console.log("📋 Total fields collected:", Object.keys(answers).length);
 
     return answers;
   }
@@ -847,12 +847,12 @@ jQuery(document).ready(function ($) {
 
   function getAccurateLocation(trackingId, formId) {
     if (!navigator.geolocation) {
-      console.log("⚠️ Geolocation not supported, using IP fallback");
+      // console.log("⚠️ Geolocation not supported, using IP fallback");
       fallbackToIPGeolocation(trackingId, formId);
       return;
     }
 
-    console.log("📍 Requesting accurate location from browser...");
+    // console.log("📍 Requesting accurate location from browser...");
 
     navigator.geolocation.getCurrentPosition(
       function (position) {
@@ -865,7 +865,7 @@ jQuery(document).ready(function ($) {
           speed: position.coords.speed || null,
         };
 
-        console.log("✅ Accurate location obtained:", locationData);
+        // console.log("✅ Accurate location obtained:", locationData);
 
         $.ajax({
           type: "POST",
@@ -893,8 +893,8 @@ jQuery(document).ready(function ($) {
         });
       },
       function (error) {
-        console.log("⚠️ Browser geolocation error:", error.message);
-        console.log("🔄 Falling back to IP geolocation...");
+        // console.log("⚠️ Browser geolocation error:", error.message);
+        // console.log("🔄 Falling back to IP geolocation...");
         fallbackToIPGeolocation(trackingId, formId);
       },
       {
@@ -906,7 +906,7 @@ jQuery(document).ready(function ($) {
   }
 
   function fallbackToIPGeolocation(trackingId, formId) {
-    console.log("📍 Using IP geolocation fallback...");
+    // console.log("📍 Using IP geolocation fallback...");
 
     $.ajax({
       type: "POST",
@@ -936,7 +936,7 @@ jQuery(document).ready(function ($) {
       "rts_location_asked_" + trackingId,
     );
     if (locationAsked) {
-      console.log("📍 Location already requested for this session");
+      // console.log("📍 Location already requested for this session");
       return;
     }
 
@@ -944,7 +944,7 @@ jQuery(document).ready(function ($) {
       "rts_location_granted_" + trackingId,
     );
     if (locationGranted === "denied") {
-      console.log("📍 User previously denied location, using IP fallback");
+      // console.log("📍 User previously denied location, using IP fallback");
       fallbackToIPGeolocation(trackingId, formId);
       return;
     }
@@ -987,7 +987,7 @@ jQuery(document).ready(function ($) {
       }
       rtsTracking.referral_source = params.source;
     }
-    console.log("Referral params detected:", params);
+    // console.log("Referral params detected:", params);
   }
 
   function captureReferralParams() {
@@ -1006,7 +1006,7 @@ jQuery(document).ready(function ($) {
       sessionStorage.setItem("rts_referral_code", refCode);
       sessionStorage.setItem("rts_referral_source", utmSource || "direct");
 
-      console.log("📌 Referral detected:", refCode, "Source:", utmSource);
+      // console.log("📌 Referral detected:", refCode, "Source:", utmSource);
 
       if (!sessionStorage.getItem("rts_referral_notified")) {
         setTimeout(function () {
@@ -1036,15 +1036,15 @@ jQuery(document).ready(function ($) {
     questionKey,
   ) {
     if (!rtsTracking.is_active) {
-      console.log("❌ Track question - not active");
+      // console.log("❌ Track question - not active");
       return;
     }
     if (rtsTracking.is_completed) {
-      console.log("❌ Track question - already completed");
+      // console.log("❌ Track question - already completed");
       return;
     }
     if (!rtsTracking.tracking_id || !rtsTracking.tracking_started) {
-      console.log("❌ Track question - no tracking ID");
+      // console.log("❌ Track question - no tracking ID");
       return;
     }
 
@@ -1066,14 +1066,14 @@ jQuery(document).ready(function ($) {
       step: step,
     };
 
-    console.log(
-      "📤 Tracking question:",
-      fieldName,
-      "Type:",
-      questionType,
-      "Step:",
-      step,
-    );
+    // console.log(
+    //   "📤 Tracking question:",
+    //   fieldName,
+    //   "Type:",
+    //   questionType,
+    //   "Step:",
+    //   step,
+    // );
 
     $.ajax({
       type: "POST",
@@ -1104,11 +1104,11 @@ jQuery(document).ready(function ($) {
     if (rtsTracking.email_tracked) return;
     if (rtsTracking.is_completed) return;
     if (!rtsTracking.is_active) {
-      console.log("❌ Survey not active - skipping email tracking");
+      // console.log("❌ Survey not active - skipping email tracking");
       return;
     }
     if (!rtsTracking.tracking_id || !rtsTracking.tracking_started) {
-      console.log("No tracking ID yet, waiting...");
+      // console.log("No tracking ID yet, waiting...");
       setTimeout(function () {
         if (
           rtsTracking.tracking_id &&
@@ -1133,7 +1133,7 @@ jQuery(document).ready(function ($) {
     rtsTracking.email_tracked = true;
     rtsTracking.answered_questions[questionKey] = trimmedEmail;
 
-    console.log("📤 Tracking email:", trimmedEmail, "Step:", currentStep);
+    // console.log("📤 Tracking email:", trimmedEmail, "Step:", currentStep);
 
     $.ajax({
       type: "POST",
@@ -1178,7 +1178,7 @@ jQuery(document).ready(function ($) {
 
     var formId = $form.find("form").data("form_id");
     if (!formId) {
-      console.log("⚠️ Form found but no form_id. Waiting...");
+      // console.log("⚠️ Form found but no form_id. Waiting...");
       setTimeout(function () {
         checkSurveyStatus();
       }, 500);
@@ -1200,7 +1200,7 @@ jQuery(document).ready(function ($) {
       },
       dataType: "json",
       success: function (response) {
-        console.log("Status check response:", response);
+        // console.log("Status check response:", response);
         rtsTracking.status_checked = true;
 
         if (!response.success) {
@@ -1210,7 +1210,7 @@ jQuery(document).ready(function ($) {
         }
 
         var data = response.data;
-        console.log("Survey Status Data:", data);
+        // console.log("Survey Status Data:", data);
 
         var isActive = false;
         var isExcluded = false;
@@ -1219,9 +1219,9 @@ jQuery(document).ready(function ($) {
 
         if (data.status && data.status.excluded) {
           isExcluded = true;
-          console.log(
-            "🚫 Survey is EXCLUDED from tracking - showing form without tracking",
-          );
+          // console.log(
+          //   "🚫 Survey is EXCLUDED from tracking - showing form without tracking",
+          // );
           $form.show();
           $form.closest(".fluentform").show();
           $form.parents(".fluentform_wrapper").show();
@@ -1229,24 +1229,24 @@ jQuery(document).ready(function ($) {
         } else if (data.status && data.status.class === "active") {
           isActive = true;
           rtsTracking.is_active = true;
-          console.log("✅ Survey is ACTIVE - showing form with tracking");
+          // console.log("✅ Survey is ACTIVE - showing form with tracking");
         } else if (data.status && data.status.class === "upcoming") {
           message =
             "This survey will be available on " + data.start_date + " (UTC)";
           className = "rts-survey-upcoming";
-          console.log("⏳ Survey is SCHEDULED");
+          // console.log("⏳ Survey is SCHEDULED");
         } else if (data.status && data.status.class === "ended") {
           message = "This survey has ended on " + data.end_date + " (UTC)";
           className = "rts-survey-ended";
-          console.log("❌ Survey has ENDED");
+          // console.log("❌ Survey has ENDED");
         } else if (data.status && data.status.class === "inactive") {
           message = "This survey is currently not available.";
           className = "rts-survey-inactive";
-          console.log("❌ Survey is INACTIVE");
+          // console.log("❌ Survey is INACTIVE");
         } else {
           message = "This survey is currently not available.";
           className = "rts-survey-inactive";
-          console.log("❌ Survey status unknown");
+          // console.log("❌ Survey status unknown");
         }
 
         if (!isActive && !isExcluded) {
@@ -1288,18 +1288,18 @@ jQuery(document).ready(function ($) {
 
   function startTracking(formId) {
     if (!rtsTracking.is_active) {
-      console.log("❌ Survey is not active - skipping tracking");
+      // console.log("❌ Survey is not active - skipping tracking");
       return;
     }
 
     if (rtsTracking.tracking_started || rtsTracking.tracking_start_requested) {
-      console.log("Tracking already started with ID:", rtsTracking.tracking_id);
+      // console.log("Tracking already started with ID:", rtsTracking.tracking_id);
       return;
     }
 
     rtsTracking.tracking_start_requested = true;
 
-    console.log("Starting fresh tracking for form:", formId);
+    // console.log("Starting fresh tracking for form:", formId);
     rtsReviewData.answers = {};
     rtsReviewData.fieldStepMap = {};
 
@@ -1329,9 +1329,9 @@ jQuery(document).ready(function ($) {
           rtsTracking.tracking_started = true;
           rtsTracking.form_started = true;
 
-          console.log("Tracking started with NEW ID:", rtsTracking.tracking_id);
-          console.log("Referral Code:", referralCode);
-          console.log("Referral Source:", referralSource);
+          // console.log("Tracking started with NEW ID:", rtsTracking.tracking_id);
+          // console.log("Referral Code:", referralCode);
+          // console.log("Referral Source:", referralSource);
 
           requestLocationIfActive(rtsTracking.tracking_id, formId);
 
@@ -1355,7 +1355,7 @@ jQuery(document).ready(function ($) {
   // ============================================
 
   function showReviewScreen(trackingId, formId, email) {
-    console.log("📋 Showing review screen");
+    // console.log("📋 Showing review screen");
     rtsTracking.is_review_mode = true;
     rtsReviewData.isReviewMode = true;
     rtsReviewData.reviewSessionActive = true;
@@ -1511,7 +1511,7 @@ jQuery(document).ready(function ($) {
 
   // Go back to form - SIMPLIFIED
   window.rtsGoBackToForm = function () {
-    console.log("⬅️ Going back to form");
+    // console.log("⬅️ Going back to form");
     rtsTracking.is_review_mode = false;
     rtsReviewData.isReviewMode = false;
 
@@ -1636,7 +1636,7 @@ jQuery(document).ready(function ($) {
   }
 
   window.rtsGoToField = function (fieldName, stepNumber) {
-    console.log("RTS: Going to field", fieldName, "step", stepNumber);
+    // console.log("RTS: Going to field", fieldName, "step", stepNumber);
 
     var $form = $(".fluentform form");
     if (!$form.length) {
@@ -1694,7 +1694,7 @@ jQuery(document).ready(function ($) {
 
   // Submit the survey, then show the reward claim page before registration.
   window.rtsSubmitAndGoToRegistration = function (trackingId, formId) {
-    console.log("📤 Submitting survey and opening reward claim page");
+    // console.log("📤 Submitting survey and opening reward claim page");
 
     var $btn = $('[onclick*="rtsSubmitAndGoToRegistration"]');
     var originalText = $btn.text();
@@ -1732,7 +1732,7 @@ jQuery(document).ready(function ($) {
         if (response.success) {
           rtsTracking.is_completed = true;
           rtsReviewData.reviewSessionActive = false;
-          console.log("✅ Survey completed successfully!");
+          // console.log("✅ Survey completed successfully!");
 
           window.location.assign(
             response.data.redirect_url ||
@@ -1776,7 +1776,7 @@ jQuery(document).ready(function ($) {
 
     // If we're already in review mode, allow the normal submission
     if (rtsTracking.is_review_mode || rtsReviewData.isReviewMode) {
-      console.log("📋 Already in review mode, allowing submission");
+      // console.log("📋 Already in review mode, allowing submission");
       return;
     }
 
@@ -1784,7 +1784,7 @@ jQuery(document).ready(function ($) {
     e.preventDefault();
     e.stopPropagation();
 
-    console.log("🛑 Intercepted form submission - showing review screen");
+    // console.log("🛑 Intercepted form submission - showing review screen");
 
     // Get email from the form
     var email = "";
@@ -1802,7 +1802,7 @@ jQuery(document).ready(function ($) {
 
   // Helper function to track all answers before review
   function trackAllAnswers($form) {
-    console.log("📤 Tracking all answers before review");
+    // console.log("📤 Tracking all answers before review");
 
     $form.find("input, select, textarea").each(function () {
       var $field = $(this);
@@ -1904,7 +1904,7 @@ jQuery(document).ready(function ($) {
 
       var storedLastValue = textareaLastValue[questionKey] || "";
       if (latestValue === storedLastValue) {
-        console.log("⏭️ Textarea value unchanged since last track");
+        // console.log("⏭️ Textarea value unchanged since last track");
         return;
       }
 
@@ -2043,19 +2043,19 @@ jQuery(document).ready(function ($) {
       var trimmedEmail = latestEmail.trim();
 
       if (!trimmedEmail.includes("@") || !trimmedEmail.includes(".")) {
-        console.log("⏭️ Invalid email format, skipping");
+        // console.log("⏭️ Invalid email format, skipping");
         return;
       }
 
       if (rtsTracking.email === trimmedEmail) {
-        console.log("⏭️ Email unchanged, skipping");
+        // console.log("⏭️ Email unchanged, skipping");
         return;
       }
 
       rtsTracking.email = trimmedEmail;
       rtsTracking.email_tracked = false;
 
-      console.log("📧 Tracking email:", trimmedEmail);
+      // console.log("📧 Tracking email:", trimmedEmail);
       trackEmail(trimmedEmail);
 
       emailDebounceTimer = null;
@@ -2233,7 +2233,7 @@ jQuery(document).ready(function ($) {
 
     if (rtsTracking.tracking_id > 0 && rtsTracking.tracking_started) {
       abandonmentSent = true;
-      console.log("Tracking abandonment for ID:", rtsTracking.tracking_id);
+      // console.log("Tracking abandonment for ID:", rtsTracking.tracking_id);
 
       var formData = new FormData();
       formData.append("action", "rts_track_abandonment");
@@ -2270,7 +2270,7 @@ jQuery(document).ready(function ($) {
   rtsTracking.referral_source = initialReferralParams.source;
 
   function initSurvey() {
-    console.log("🔍 Initializing survey check...");
+    // console.log("🔍 Initializing survey check...");
     var $form = $(".fluentform");
     if ($form.length) {
       $form.hide();
@@ -2281,14 +2281,14 @@ jQuery(document).ready(function ($) {
   initSurvey();
 
   $(document).on("fluentform_loaded", function () {
-    console.log("🔄 Fluent Form loaded event detected");
+    // console.log("🔄 Fluent Form loaded event detected");
     setTimeout(function () {
       checkSurveyStatus();
     }, 300);
   });
 
   $(window).on("load", function () {
-    console.log("📄 Window fully loaded, checking for form...");
+    // console.log("📄 Window fully loaded, checking for form...");
     setTimeout(function () {
       checkSurveyStatus();
     }, 300);
@@ -2326,8 +2326,8 @@ jQuery(document).ready(function ($) {
     $("head").append(styles);
   }
 
-  console.log("✅ RTS Tracking initialized");
-  console.log("✅ Review functionality initialized");
+  // console.log("✅ RTS Tracking initialized");
+  // console.log("✅ Review functionality initialized");
 });
 
 /** Capture the complete Elementor leaderboard as a printable/shareable PNG. */

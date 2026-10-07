@@ -4,7 +4,7 @@
  * Plugin Name: Run The Seas - Survey
  * Plugin URI: https://runtheseas.com/
  * Description: Advanced survey management with gamification, 42.2K Referral Marathon Challenge
- * Version: 1.3.53
+ * Version: 1.3.54
  * License: GPL v2 or later
  * Text Domain: run-the-seas
  */
@@ -19,6 +19,11 @@ define('RTS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('RTS_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('RTS_VERSION', '1.3.53');
 define('RTS_MANAGE_CAPABILITY', 'rts_manage_surveys');
+
+/**
+ * Security: Disable XML-RPC authentication.
+ */
+add_filter( 'xmlrpc_enabled', '__return_false' );
 
 /** Atomically prevent concurrent web requests from running the same upgrade. */
 function rts_acquire_upgrade_lock($name, $ttl = 600)

@@ -537,7 +537,7 @@ class RTS_Registration_Page {
         
         <script>
             jQuery(document).ready(function($) {
-                console.log('Registration form initialized');
+                // console.log('Registration form initialized');
                 
                 // --- GET TRACKING_ID FROM MULTIPLE SOURCES ---
                 function getCookie(name) {
@@ -553,7 +553,7 @@ class RTS_Registration_Page {
                     // 1. Check hidden field
                     var trackingId = $('#rts_tracking_id_field').val();
                     if (trackingId && trackingId != '0') {
-                        console.log('RTS: tracking_id from hidden field:', trackingId);
+                        // console.log('RTS: tracking_id from hidden field:', trackingId);
                         return trackingId;
                     }
                     
@@ -561,7 +561,7 @@ class RTS_Registration_Page {
                     var urlParams = new URLSearchParams(window.location.search);
                     trackingId = urlParams.get('tracking_id');
                     if (trackingId) {
-                        console.log('RTS: tracking_id from URL:', trackingId);
+                        // console.log('RTS: tracking_id from URL:', trackingId);
                         $('#rts_tracking_id_field').val(trackingId);
                         return trackingId;
                     }
@@ -571,18 +571,18 @@ class RTS_Registration_Page {
                         ? getCookie('rts_tracking_id')
                         : null;
                     if (trackingId) {
-                        console.log('RTS: tracking_id from cookie:', trackingId);
+                        // console.log('RTS: tracking_id from cookie:', trackingId);
                         $('#rts_tracking_id_field').val(trackingId);
                         return trackingId;
                     }
                     
-                    console.log('RTS: No tracking_id found');
+                    // console.log('RTS: No tracking_id found');
                     return null;
                 }
                 
                 // Get tracking ID on page load
                 var trackingId = getTrackingId();
-                console.log('RTS: Final tracking_id:', trackingId);            
+                // console.log('RTS: Final tracking_id:', trackingId);            
             
                 
                 // --- BUILD SUCCESS MESSAGE FUNCTION ---
@@ -747,7 +747,7 @@ class RTS_Registration_Page {
                         }
                     }
                     
-                    console.log('📊 Share tracked:', action, platform, 'Ref:', referralCode);
+                    // console.log('📊 Share tracked:', action, platform, 'Ref:', referralCode);
                     
                     if (typeof rts_ajax !== 'undefined' && rts_ajax.ajax_url) {
                         jQuery.ajax({
@@ -762,7 +762,7 @@ class RTS_Registration_Page {
                             },
                             dataType: 'json',
                             success: function(response) {
-                                console.log('✅ Share tracking confirmed:', response);
+                                // console.log('✅ Share tracking confirmed:', response);
                             },
                             error: function(xhr, status, error) {
                                 console.error('❌ Share tracking failed:', error);
@@ -876,13 +876,13 @@ class RTS_Registration_Page {
                 
                 $form.on('submit', function(e) {
                     e.preventDefault();
-                    console.log('Form submission triggered');
+                    // console.log('Form submission triggered');
                     
                     // Make sure tracking_id is in the hidden field
                     var trackingId = getTrackingId();
                     if (trackingId) {
                         $('#rts_tracking_id_field').val(trackingId);
-                        console.log('RTS: Set tracking_id field to:', trackingId);
+                        // console.log('RTS: Set tracking_id field to:', trackingId);
                     }
                     
                     var valid = true;
@@ -913,8 +913,8 @@ class RTS_Registration_Page {
                     $status.show().html('<div style="padding: 15px; background: #e3f2fd; border-radius: 6px; color: #1a7efb; text-align: center;">⏳ Creating your account and certificate...</div>');
                     
                     var formData = $form.serialize();
-                    console.log('RTS: Submitting form data with tracking_id:', $('#rts_tracking_id_field').val());
-                    console.log('RTS: Full form data:', formData);
+                    // console.log('RTS: Submitting form data with tracking_id:', $('#rts_tracking_id_field').val());
+                    // console.log('RTS: Full form data:', formData);
                     
                     $.ajax({
                         type: 'POST',
@@ -923,13 +923,13 @@ class RTS_Registration_Page {
                         dataType: 'json',
                         timeout: 30000,
                         success: function(response) {
-                            console.log('Registration Response:', response);
+                            // console.log('Registration Response:', response);
                             
                             if (response.success) {
                                 var data = response.data;
                                 
                                 if (data.is_existing_user) {
-                                    console.log('RTS: Existing user, redirecting to:', data.redirect_url);
+                                    // console.log('RTS: Existing user, redirecting to:', data.redirect_url);
                                     window.location.href = data.redirect_url;
                                     return;
                                 }

@@ -6,8 +6,8 @@ jQuery(document).ready(function($) {
         return;
     }
     
-    console.log('RTS Admin initialized');
-    console.log('AJAX URL:', rts_admin.ajax_url);
+    // console.log('RTS Admin initialized');
+    // console.log('AJAX URL:', rts_admin.ajax_url);
 
     $('#rts-create-race-form').on('submit', function(e) {
         e.preventDefault();
@@ -321,7 +321,7 @@ jQuery(document).ready(function($) {
             },
             dataType: 'json',
             success: function(response) {
-                console.log('Toggle Exclude Response:', response);
+                // console.log('Toggle Exclude Response:', response);
                 
                 if (response.success) {
                     // Update button
@@ -424,7 +424,7 @@ jQuery(document).ready(function($) {
             },
             dataType: 'json',
             success: function(response) {
-                console.log('Toggle Survey Response:', response);
+                // console.log('Toggle Survey Response:', response);
                 if (response.success) {
                     location.reload();
                 } else {
@@ -485,7 +485,7 @@ jQuery(document).ready(function($) {
             },
             dataType: 'json',
             success: function(response) {
-                console.log('AJAX Response:', response);
+                // console.log('AJAX Response:', response);
                 $('#rts-saving-indicator').hide();
                 $btn.prop('disabled', false).text('Save Settings');
                 

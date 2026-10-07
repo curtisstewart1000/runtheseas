@@ -1,7 +1,7 @@
 jQuery(document).ready(function($) {
-    console.log('RTS Analytics initialized');
-    console.log('rts_admin:', typeof rts_admin !== 'undefined' ? rts_admin : 'NOT DEFINED');
-    console.log('rts_analytics:', typeof rts_analytics !== 'undefined' ? rts_analytics : 'NOT DEFINED');
+    // console.log('RTS Analytics initialized');
+    // console.log('rts_admin:', typeof rts_admin !== 'undefined' ? rts_admin : 'NOT DEFINED');
+    // console.log('rts_analytics:', typeof rts_analytics !== 'undefined' ? rts_analytics : 'NOT DEFINED');
     
     var currentFormId = 0;
     var completionChart = null;
@@ -15,7 +15,7 @@ jQuery(document).ready(function($) {
             ajax_url: ajaxurl || '/wp-admin/admin-ajax.php',
             nonce: rts_analytics ? rts_analytics.nonce : ''
         };
-        console.log('RTS Analytics: rts_admin defined manually');
+        // console.log('RTS Analytics: rts_admin defined manually');
     }
     
     // Check if rts_analytics is defined
@@ -36,7 +36,7 @@ jQuery(document).ready(function($) {
             return;
         }
         
-        console.log('Loading analytics for form:', formId);
+        // console.log('Loading analytics for form:', formId);
         
         $('#rts-no-form-selected').hide();
         $('#rts-analytics-dashboard').show();
@@ -45,8 +45,8 @@ jQuery(document).ready(function($) {
         var ajaxUrl = rts_admin.ajax_url || rts_analytics.ajax_url || ajaxurl;
         var nonce = rts_admin.nonce || rts_analytics.nonce || '';
         
-        console.log('AJAX URL:', ajaxUrl);
-        console.log('Nonce:', nonce);
+        // console.log('AJAX URL:', ajaxUrl);
+        // console.log('Nonce:', nonce);
         
         $.ajax({
             type: 'POST',
@@ -60,7 +60,7 @@ jQuery(document).ready(function($) {
             },
             dataType: 'json',
             success: function(response) {
-                console.log('Analytics Response:', response);
+                // console.log('Analytics Response:', response);
                 
                 if (response.success) {
                     var data = response.data;
@@ -73,8 +73,8 @@ jQuery(document).ready(function($) {
                 }
             },
             error: function(xhr, status, error) {
-                console.error('AJAX Error:', error);
-                console.log('Response:', xhr.responseText);
+                // console.error('AJAX Error:', error);
+                // console.log('Response:', xhr.responseText);
                 $('#rts-stats-grid').html('<div style="text-align: center; padding: 40px; color: #dc3545;">❌ Error loading analytics. Please check console for details.</div>');
             }
         });
@@ -256,7 +256,7 @@ jQuery(document).ready(function($) {
     // Form selection change
     $('#rts-analytics-form-select').on('change', function() {
         currentFormId = $(this).val();
-        console.log('Form selected:', currentFormId);
+        // console.log('Form selected:', currentFormId);
         if (currentFormId) {
             window.history.pushState({}, '', '?page=rts-analytics&form_id=' + currentFormId);
             loadAnalytics(currentFormId, $('#rts-analytics-date-from').val(), $('#rts-analytics-date-to').val());
@@ -402,7 +402,7 @@ jQuery(document).ready(function($) {
     
     // Load initial data if form selected
     currentFormId = $('#rts-analytics-form-select').val();
-    console.log('Initial form ID:', currentFormId);
+    // console.log('Initial form ID:', currentFormId);
     if (currentFormId) {
         loadAnalytics(currentFormId);
     } else {
